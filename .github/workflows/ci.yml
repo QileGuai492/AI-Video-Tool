@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: 运行 Ruff
+        run: ruff check app tests eval_harness
+
+      - name: 运行全部测试
+        run: pytest --cov=app --cov-report=term-missing
+
+      - name: 运行 Harness 评测
+        run: python -m eval_harness
+
+      - name: 上传评测报告
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-report
+          path: logs/评测报告.md

@@ -1,0 +1,359 @@
+"""LangGraph 任务编排器。
+
+将视频生成流水线建模为状态图：
+优化提示词 → 首帧 → 视频片段 → 音频 → 字幕 → 后处理 → 质量检查 → 完成。
+"""
+
+import time
+import uuid
+from pathlib import Path
+from typing import TypedDict
+
+from langgraph.graph import END, START, StateGraph
+
+from app.core.config import get_settings
+from app.core.time import utc_now
+from app.db.session import SessionLocal
+from app.models import GenerationLog, VideoSegment, VideoTask
+from app.providers.base import (
+    ImageGenerationRequest,
+    LLMRequest,
+    VideoGenerationRequest,
+)
+from app.providers.registry import registry
+from app.services.audio_service import generate_tts_audio
+from app.services.media_download import download_and_store_video
+from app.services.quality_service import evaluate_video
+from app.services.subtitle_service import generate_subtitle
+from app.services.task_service import calculate_segment_count
+from app.services.video_stitcher import StitchingError, stitch_videos
+from app.storage import storage
+
+
+class GenerationState(TypedDict, total=False):
+    """LangGraph 状态。"""
+
+    task_id: int
+    optimized_prompt: str | None
+    first_frame_url: str | None
+    segment_urls: list[str]
+    audio_url: str | None
+    subtitle_url: str | None
+    final_video_url: str | None
+    quality_score: float
+    error: str | None
+
+
+def _load_task(task_id: int) -> VideoTask | None:
+    """加载任务。"""
+    db = SessionLocal()
+    try:
+        return db.query(VideoTask).filter(VideoTask.id == task_id).first()
+    finally:
+        db.close()
+
+
+def _update_task_status(task_id: int, status: str) -> None:
+    """更新任务状态。"""
+    db = SessionLocal()
+    try:
+        task = db.query(VideoTask).filter(VideoTask.id == task_id).first()
+        if task is not None:
+            task.status = status
+            db.commit()
+    finally:
+        db.close()
+
+
+def _write_generation_log(
+    task_id: int | None,
+    user_id: int,
+    provider: str,
+    call_type: str,
+    cost,
+    status: str,
+) -> None:
+    """写入 API 调用日志。"""
+    db = SessionLocal()
+    try:
+        log = GenerationLog(
+            task_id=task_id,
+            user_id=user_id,
+            provider=provider,
+            call_type=call_type,
+            cost=cost,
+            status=status,
+        )
+        db.add(log)
+        db.commit()
+    finally:
+        db.close()
+
+
+def _wait_for_real_video(
+    video_provider,
+    handle,
+    max_attempts: int = 600,
+) -> str:
+    """轮询真实视频 Provider 直到成功，失败或超时直接抛出异常。
+
+    返回本地存储 URL；若下载失败则返回原始远程 URL，保证下载接口仍可用。
+    """
+    for _ in range(max_attempts):
+        status = video_provider.query_video_task(handle)
+        if status.state == "failed":
+            raise RuntimeError(status.error_message or "视频生成失败")
+        if status.state == "succeeded":
+            if not status.video_url:
+                raise RuntimeError("视频生成成功但未返回视频 URL")
+            video_url = download_and_store_video(status.video_url)
+            if video_url is None:
+                # 下载失败时直接使用原始视频 URL，保证可下载
+                return status.video_url
+            return video_url
+        time.sleep(1)
+    raise RuntimeError("视频生成超时，请稍后重试")
+
+
+def optimize_prompt(state: GenerationState) -> GenerationState:
+    """优化提示词。"""
+    task_id = state["task_id"]
+    _update_task_status(task_id, "optimizing_prompt")
+    db = SessionLocal()
+    try:
+        task = db.query(VideoTask).filter(VideoTask.id == task_id).first()
+        if task is None:
+            return {**state, "error": "任务不存在"}
+
+        provider = registry.get_llm_provider()
+        result = provider.complete(
+            LLMRequest(
+                system_prompt="你是一个短视频导演。",
+                user_prompt=task.prompt,
+            )
+        )
+        task.optimized_prompt = result.text
+        _write_generation_log(
+            task_id=task.id,
+            user_id=task.user_id,
+            provider=result.provider,
+            call_type="llm",
+            cost=result.cost,
+            status="success",
+        )
+        db.commit()
+        return {**state, "optimized_prompt": result.text}
+    finally:
+        db.close()
+
+
+def generate_first_frame(state: GenerationState) -> GenerationState:
+    """生成首帧。"""
+    task_id = state["task_id"]
+    _update_task_status(task_id, "generating_first_frame")
+    db = SessionLocal()
+    try:
+        task = db.query(VideoTask).filter(VideoTask.id == task_id).first()
+        if task is None:
+            return {**state, "error": "任务不存在"}
+
+        provider = registry.get_image_provider()
+        result = provider.generate_image(
+            ImageGenerationRequest(prompt=state.get("optimized_prompt") or task.prompt)
+        )
+        _write_generation_log(
+            task_id=task.id,
+            user_id=task.user_id,
+            provider=result.provider,
+            call_type="image",
+            cost=result.cost,
+            status="success",
+        )
+        return {**state, "first_frame_url": result.image_url}
+    finally:
+        db.close()
+
+
+def generate_video_segments(state: GenerationState) -> GenerationState:
+    """生成多个视频片段。"""
+    task_id = state["task_id"]
+    _update_task_status(task_id, "generating_video")
+    db = SessionLocal()
+    try:
+        task = db.query(VideoTask).filter(VideoTask.id == task_id).first()
+        if task is None:
+            return {**state, "error": "任务不存在"}
+
+        segment_count = calculate_segment_count(task.duration or 60)
+        provider = registry.get_video_provider()
+        segment_urls: list[str] = []
+        mock_clip_path = Path("app/providers/assets/mock_clip.mp4")
+        placeholder_content = mock_clip_path.read_bytes() if mock_clip_path.exists() else b"mock-video"
+
+        for index in range(segment_count):
+            request = VideoGenerationRequest(
+                prompt=state.get("optimized_prompt") or task.prompt,
+                first_frame_url=state.get("first_frame_url"),
+                duration=5,
+                aspect_ratio=task.aspect_ratio or "16:9",
+                model=task.resolution or "720p",
+            )
+            handle = provider.submit_video_task(request)
+            video_url = None
+
+            # Mock 场景直接使用本地占位视频，避免轮询等待
+            if provider.name.startswith("mock"):
+                key = storage.upload(content=placeholder_content, suffix="mp4", folder="videos")
+                video_url = storage.get_url(key)
+            else:
+                # 轮询真实 Provider；失败或超时直接抛出，不再回退占位视频
+                video_url = _wait_for_real_video(provider, handle)
+
+            segment = VideoSegment(
+                task_id=task.id,
+                segment_index=index,
+                video_url=video_url,
+                prompt_used=state.get("optimized_prompt"),
+                model_used=provider.name,
+                duration=5,
+            )
+            db.add(segment)
+            segment_urls.append(video_url)
+
+        db.commit()
+        return {**state, "segment_urls": segment_urls}
+    finally:
+        db.close()
+
+
+def generate_audio(state: GenerationState) -> GenerationState:
+    """生成配音。"""
+    task_id = state["task_id"]
+    _update_task_status(task_id, "generating_audio")
+    db = SessionLocal()
+    try:
+        task = db.query(VideoTask).filter(VideoTask.id == task_id).first()
+        if task is None:
+            return {**state, "error": "任务不存在"}
+        try:
+            track = generate_tts_audio(
+                db=db,
+                user_id=task.user_id,
+                task_id=task.id,
+                text=state.get("optimized_prompt") or task.prompt,
+            )
+            task.audio_url = track.source_url
+            db.commit()
+            return {**state, "audio_url": track.source_url}
+        except Exception:  # noqa: BLE001
+            return state
+    finally:
+        db.close()
+
+
+def generate_subtitle_node(state: GenerationState) -> GenerationState:
+    """生成字幕。"""
+    task_id = state["task_id"]
+    _update_task_status(task_id, "generating_subtitle")
+    db = SessionLocal()
+    try:
+        task = db.query(VideoTask).filter(VideoTask.id == task_id).first()
+        if task is None:
+            return {**state, "error": "任务不存在"}
+        try:
+            subtitle_url, _ = generate_subtitle(state.get("optimized_prompt") or task.prompt)
+            task.subtitle_url = subtitle_url
+            db.commit()
+            return {**state, "subtitle_url": subtitle_url}
+        except Exception:  # noqa: BLE001
+            return state
+    finally:
+        db.close()
+
+
+def post_process(state: GenerationState) -> GenerationState:
+    """拼接片段并生成成片。"""
+    _update_task_status(state["task_id"], "post_processing")
+    segment_urls = state.get("segment_urls", [])
+    local_paths: list[Path] = []
+    for url in segment_urls:
+        if url.startswith("/uploads/"):
+            local_paths.append(Path("uploads") / url.removeprefix("/uploads/"))
+        else:
+            downloaded = download_and_store_video(url)
+            if downloaded and downloaded.startswith("/uploads/"):
+                local_paths.append(Path("uploads") / downloaded.removeprefix("/uploads/"))
+
+    final_video_url = segment_urls[0] if segment_urls else None
+    if len(local_paths) == len(segment_urls) and len(local_paths) > 1:
+        try:
+            stitched_dir = Path("uploads/stitched")
+            stitched_dir.mkdir(parents=True, exist_ok=True)
+            output = stitched_dir / f"{uuid.uuid4().hex}.mp4"
+            stitch_videos(local_paths, output)
+            key = storage.upload(content=output.read_bytes(), suffix="mp4", folder="videos")
+            final_video_url = storage.get_url(key)
+        except (StitchingError, OSError):
+            final_video_url = local_paths[0].as_posix().replace("uploads/", "/uploads/")
+    elif local_paths:
+        # 只有部分片段可本地化时，回退到第一个本地片段
+        final_video_url = local_paths[0].as_posix().replace("uploads/", "/uploads/")
+
+    return {**state, "final_video_url": final_video_url}
+
+
+def quality_check(state: GenerationState) -> GenerationState:
+    """质量评估。"""
+    _update_task_status(state["task_id"], "quality_check")
+    settings = get_settings()
+    report = evaluate_video(state.get("final_video_url"), settings.quality_threshold)
+    return {**state, "quality_score": report.score}
+
+
+def finalize(state: GenerationState) -> GenerationState:
+    """完成并保存结果。"""
+    db = SessionLocal()
+    try:
+        task = db.query(VideoTask).filter(VideoTask.id == state["task_id"]).first()
+        if task is None:
+            return state
+        task.video_url = state.get("final_video_url")
+        task.status = "completed"
+        task.completed_at = utc_now()
+        db.commit()
+    finally:
+        db.close()
+    return state
+
+
+class LangGraphOrchestrator:
+    """基于 LangGraph 的状态图编排器。"""
+
+    def run(self, task_id: int) -> None:
+        """构建图并执行。"""
+        builder = StateGraph(GenerationState)
+        builder.add_node("optimize_prompt", optimize_prompt)
+        builder.add_node("generate_first_frame", generate_first_frame)
+        builder.add_node("generate_video_segments", generate_video_segments)
+        builder.add_node("generate_audio", generate_audio)
+        builder.add_node("generate_subtitle", generate_subtitle_node)
+        builder.add_node("post_process", post_process)
+        builder.add_node("quality_check", quality_check)
+        builder.add_node("finalize", finalize)
+
+        builder.add_edge(START, "optimize_prompt")
+        builder.add_edge("optimize_prompt", "generate_first_frame")
+        builder.add_edge("generate_first_frame", "generate_video_segments")
+        builder.add_edge("generate_video_segments", "generate_audio")
+        builder.add_edge("generate_audio", "generate_subtitle")
+        builder.add_edge("generate_subtitle", "post_process")
+        builder.add_edge("post_process", "quality_check")
+        builder.add_edge("quality_check", "finalize")
+        builder.add_edge("finalize", END)
+
+        graph = builder.compile()
+        try:
+            graph.invoke({"task_id": task_id})
+        except Exception:
+            _update_task_status(task_id, "failed")
+            raise

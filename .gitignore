@@ -1,0 +1,49 @@
+# 依赖与缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.pytest-tmp/
+.test-tmp/
+.eval_tmp/
+pytest-cache-files-*/
+.mypy_cache/
+.ruff_cache/
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# 本地数据库
+*.db
+*.sqlite
+*.sqlite3
+
+# 前端
+node_modules/
+frontend/dist/
+.vite/
+
+# IDE / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 日志与临时文件
+logs/
+*.log
+tmp/
+uploads/
+.coverage
+/*.mp4

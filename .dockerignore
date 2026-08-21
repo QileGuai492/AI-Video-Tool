@@ -1,0 +1,40 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 测试与缓存
+.pytest_cache/
+.pytest-tmp/
+.test-tmp/
+.ruff_cache/
+.coverage
+pytest-cache-files-*/
+tmp/
+
+# 本地数据
+uploads/
+*.db
+*.sqlite
+*.sqlite3
+
+# 文档与仓库元数据
+.git/
+.github/
+docs/
+tests/

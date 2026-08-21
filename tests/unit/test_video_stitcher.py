@@ -1,0 +1,54 @@
+"""视频拼接服务单元测试。"""
+
+from pathlib import Path
+
+from app.services.video_stitcher import StitchingError, build_concat_file, stitch_videos
+
+
+def test_build_concat_file(local_tmp_path: Path) -> None:
+    """生成 FFmpeg concat 文件列表。"""
+    segment_paths = [local_tmp_path / "a.mp4", local_tmp_path / "b.mp4"]
+    list_file = local_tmp_path / "list.txt"
+
+    build_concat_file(segment_paths, list_file)
+
+    content = list_file.read_text(encoding="utf-8")
+    assert "a.mp4" in content
+    assert "b.mp4" in content
+
+
+def test_stitch_single_file_copies(local_tmp_path: Path) -> None:
+    """单个片段时直接复制，不调用 FFmpeg。"""
+    source = local_tmp_path / "source.mp4"
+    source.write_bytes(b"video-data")
+    output = local_tmp_path / "output.mp4"
+
+    result = stitch_videos([source], output)
+
+    assert result == output
+    assert output.read_bytes() == b"video-data"
+
+
+def test_stitch_empty_raises(local_tmp_path: Path) -> None:
+    """没有片段时抛出 StitchingError。"""
+    try:
+        stitch_videos([], local_tmp_path / "out.mp4")
+    except StitchingError:
+        return
+    raise AssertionError("应当抛出 StitchingError")
+
+
+def test_stitch_two_real_clips(local_tmp_path: Path) -> None:
+    """两个真实 MP4 片段应能拼接成功。"""
+    mock_clip = Path("app/providers/assets/mock_clip.mp4")
+    first = local_tmp_path / "first.mp4"
+    second = local_tmp_path / "second.mp4"
+    first.write_bytes(mock_clip.read_bytes())
+    second.write_bytes(mock_clip.read_bytes())
+    output = local_tmp_path / "output.mp4"
+
+    stitch_videos([first, second], output)
+
+    assert output.exists()
+    assert output.stat().st_size > 0
+
