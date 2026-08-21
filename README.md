@@ -97,6 +97,28 @@ python -m eval_harness --clean
 
 - `logs/评测报告.md`
 
+## Allure 测试报告
+
+项目已接入 Allure，CI 会自动生成并上传 HTML 报告。
+
+本地生成：
+
+```bash
+# 安装依赖
+pip install -e ".[dev]"
+
+# 运行测试并收集 Allure 结果
+pytest --alluredir=allure-results
+
+# 生成 HTML 报告（需要已安装 Allure Commandline）
+python scripts/generate_allure_report.py
+```
+
+产物：
+
+- `allure-results/`：测试结果原始数据
+- `allure-report/`：HTML 报告
+
 ## 文档维护约定
 
 - 每份文档顶部保留 `状态` 和 `最近更新` 字段。

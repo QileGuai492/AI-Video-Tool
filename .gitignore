@@ -13,6 +13,8 @@ env/
 .test-tmp/
 .eval_tmp/
 pytest-cache-files-*/
+allure-results/
+allure-report/
 .mypy_cache/
 .ruff_cache/
 
