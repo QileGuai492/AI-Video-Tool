@@ -28,14 +28,26 @@ jobs:
       - name: 运行全部测试
         run: pytest --cov=app --cov-report=term-missing --alluredir=allure-results
 
-      - name: 生成 Allure 报告
-        uses: allure-framework/allure-action@v2
+      - name: 获取 Allure 历史
+        uses: actions/checkout@v4
+        if: always()
+        continue-on-error: true
         with:
-          allure-results: allure-results
-          allure-report: allure-report
+          ref: gh-pages
+          path: gh-pages
+
+      - name: 生成 Allure 报告
+        uses: simple-elf/allure-report-action@master
+        if: always()
+        with:
+          allure_results: allure-results
+          gh_pages: gh-pages
+          allure_report: allure-report
+          allure_history: allure-history
 
       - name: 上传 Allure 报告
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: allure-report
           path: allure-report
