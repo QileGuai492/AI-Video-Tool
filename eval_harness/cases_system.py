@@ -655,6 +655,79 @@ def _case_concurrent_tasks(ctx: EvalContext) -> EvalOutcome:
     return _outcome(ok, 1.0 if ok else 0.0, {"任务数": float(len(ids))}, f"任务 IDs：{ids}")
 
 
+def _case_batch_generate(ctx: EvalContext) -> EvalOutcome:
+    """批量生成：应返回多个任务 ID。"""
+    headers, _ = _register(ctx, "batch")
+    response = ctx.client.post(
+        "/api/v1/generate/batch",
+        headers=headers,
+        json={"prompt": "批量生成", "count": 3, "duration": 5, "aspect_ratio": "16:9", "quality": "standard"},
+    )
+    body = response.json() if response.status_code == 200 else {}
+    checks = {
+        "批量提交成功": response.status_code == 200,
+        "数量正确": body.get("count") == 3,
+        "任务 ID 列表完整": len(body.get("task_ids", [])) == 3,
+        "批次 ID 存在": bool(body.get("batch_id")),
+    }
+    score = sum(checks.values()) / len(checks)
+    return _outcome(
+        ok=score == 1.0,
+        score=score,
+        metrics={"任务数": float(body.get("count", 0))},
+        details=f"状态码：{response.status_code}",
+        trace=list(checks.items()),
+    )
+
+
+def _case_template_market(ctx: EvalContext) -> EvalOutcome:
+    """模板市场：应能列出模板并复制。"""
+    headers, _ = _register(ctx, "market")
+    create = ctx.client.post(
+        "/api/v1/templates",
+        headers=headers,
+        json={"name": "市场模板", "config_json": {"prompt": "测试"}},
+    )
+    if create.status_code != 200:
+        return _outcome(False, 0.0, {}, f"创建模板失败：{create.text}")
+    template_id = create.json()["id"]
+    list_response = ctx.client.get("/api/v1/templates", headers=headers)
+    fork = ctx.client.post(f"/api/v1/templates/{template_id}/fork", headers=headers)
+    checks = {
+        "创建成功": create.status_code == 200,
+        "列表包含模板": list_response.status_code == 200 and any(item["id"] == template_id for item in list_response.json()),
+        "复制成功": fork.status_code == 200 and fork.json()["id"] != template_id,
+    }
+    score = sum(checks.values()) / len(checks)
+    return _outcome(
+        ok=score == 1.0,
+        score=score,
+        metrics={"模板ID": float(template_id)},
+        details=f"创建：{create.status_code}，列表：{list_response.status_code}，复制：{fork.status_code}",
+        trace=list(checks.items()),
+    )
+
+
+def _case_metrics(ctx: EvalContext) -> EvalOutcome:
+    """监控指标：应返回基础运行数据。"""
+    response = ctx.client.get("/api/v1/metrics")
+    body = response.json() if response.status_code == 200 else {}
+    checks = {
+        "指标接口成功": response.status_code == 200,
+        "状态正常": body.get("status") == "ok",
+        "包含用户数": "users" in body,
+        "包含任务统计": "tasks" in body,
+    }
+    score = sum(checks.values()) / len(checks)
+    return _outcome(
+        ok=score == 1.0,
+        score=score,
+        metrics={"用户数": float(body.get("users", 0))},
+        details=f"状态码：{response.status_code}",
+        trace=list(checks.items()),
+    )
+
+
 def build_system_cases() -> list[EvalCase]:
     """构建系统级评测用例集。"""
     return [
@@ -758,4 +831,7 @@ def build_system_cases() -> list[EvalCase]:
         EvalCase(id="system.character_user_isolation", name="权限-角色隔离", category="system", target="api_character", description="用户 B 不能读取用户 A 的角色。", fn=_case_character_user_isolation),
         EvalCase(id="system.task_user_isolation", name="权限-任务隔离", category="system", target="api_generate", description="用户 B 不能下载用户 A 的任务视频。", fn=_case_task_user_isolation),
         EvalCase(id="system.concurrent_tasks", name="并发-多任务", category="system", target="api_generate", description="同一用户连续提交多个任务应全部完成。", fn=_case_concurrent_tasks),
+        EvalCase(id="system.batch_generate", name="批量生成", category="system", target="api_generate", description="批量提交应返回多个任务 ID。", fn=_case_batch_generate),
+        EvalCase(id="system.template_market", name="模板市场", category="system", target="api_template", description="模板市场应能列出并复制模板。", fn=_case_template_market),
+        EvalCase(id="system.metrics", name="监控指标", category="system", target="api_monitor", description="监控指标接口应返回基础运行数据。", fn=_case_metrics),
     ]

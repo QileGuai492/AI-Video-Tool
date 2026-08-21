@@ -79,3 +79,23 @@ def test_submit_task_with_character_id(client, auth_headers) -> None:
     assert submit_response.status_code == 200
     assert submit_response.json()["id"] > 0
 
+
+def test_submit_batch_tasks(client, auth_headers) -> None:
+    """批量提交应返回多个任务 ID。"""
+    response = client.post(
+        "/api/v1/generate/batch",
+        headers=auth_headers,
+        json={
+            "prompt": "批量生成测试",
+            "count": 3,
+            "duration": 5,
+            "aspect_ratio": "16:9",
+            "quality": "standard",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 3
+    assert len(body["task_ids"]) == 3
+    assert body["batch_id"]
+

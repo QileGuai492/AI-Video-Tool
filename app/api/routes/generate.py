@@ -1,5 +1,6 @@
 """视频生成接口。"""
 
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,7 +10,13 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models import User, VideoTask
-from app.schemas.task import GenerateVideoRequest, TaskStatusResponse, VideoTaskRead
+from app.schemas.task import (
+    BatchSubmitResponse,
+    GenerateBatchRequest,
+    GenerateVideoRequest,
+    TaskStatusResponse,
+    VideoTaskRead,
+)
 from app.services.task_service import create_video_task, get_task_status
 from app.tasks.video_tasks import process_video_task
 
@@ -29,6 +36,35 @@ def submit_video_task(
     process_video_task.delay(task.id)
 
     return task
+
+
+@router.post("/batch", response_model=BatchSubmitResponse)
+def submit_batch_tasks(
+    payload: GenerateBatchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BatchSubmitResponse:
+    """批量提交多个视频生成任务。"""
+    task_ids: list[int] = []
+    for _ in range(payload.count):
+        single = GenerateVideoRequest(
+            prompt=payload.prompt,
+            image_url=payload.image_url,
+            duration=payload.duration,
+            aspect_ratio=payload.aspect_ratio,
+            quality=payload.quality,
+            model=payload.model,
+            character_id=payload.character_id,
+        )
+        task = create_video_task(db=db, user_id=current_user.id, request=single)
+        process_video_task.delay(task.id)
+        task_ids.append(task.id)
+
+    return BatchSubmitResponse(
+        batch_id=uuid.uuid4().hex,
+        task_ids=task_ids,
+        count=len(task_ids),
+    )
 
 
 @router.get("/status/{task_id}", response_model=TaskStatusResponse)

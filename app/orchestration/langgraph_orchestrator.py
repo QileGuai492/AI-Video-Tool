@@ -14,7 +14,7 @@ from langgraph.graph import END, START, StateGraph
 from app.core.config import get_settings
 from app.core.time import utc_now
 from app.db.session import SessionLocal
-from app.models import GenerationLog, VideoSegment, VideoTask
+from app.models import Character, CharacterMultiView, GenerationLog, VideoSegment, VideoTask
 from app.providers.base import (
     ImageGenerationRequest,
     LLMRequest,
@@ -157,9 +157,24 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
         if task is None:
             return {**state, "error": "任务不存在"}
 
+        reference_image_urls: list[str] = []
+        if task.character_id is not None:
+            character = db.query(Character).filter(Character.id == task.character_id).first()
+            if character is not None:
+                reference_image_urls.append(character.reference_image_url)
+                multi_views = (
+                    db.query(CharacterMultiView)
+                    .filter(CharacterMultiView.character_id == character.id)
+                    .all()
+                )
+                reference_image_urls.extend(view.image_url for view in multi_views)
+
         provider = registry.get_image_provider()
         result = provider.generate_image(
-            ImageGenerationRequest(prompt=state.get("optimized_prompt") or task.prompt)
+            ImageGenerationRequest(
+                prompt=state.get("optimized_prompt") or task.prompt,
+                reference_image_urls=reference_image_urls,
+            )
         )
         _write_generation_log(
             task_id=task.id,

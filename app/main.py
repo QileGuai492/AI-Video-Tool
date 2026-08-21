@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.core.logging import setup_logging
 from app.db.base import Base
 from app.db.session import engine
 from app.models import (  # noqa: F401  确保模型注册到 Base.metadata
@@ -34,6 +35,7 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """本地开发自动建表；生产环境应使用 Alembic 迁移。"""
+    setup_logging()
     if settings.auto_create_tables:
         Base.metadata.create_all(bind=engine)
     yield
@@ -41,7 +43,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
+    version="0.2.0",
     debug=settings.debug,
     lifespan=lifespan,
 )

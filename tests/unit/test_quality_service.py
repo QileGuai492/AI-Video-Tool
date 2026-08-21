@@ -15,3 +15,11 @@ def test_evaluate_video_without_url() -> None:
     report = evaluate_video(None, threshold=7.5)
     assert report.passed is False
     assert report.score == 0.0
+
+
+def test_evaluate_video_dimensions() -> None:
+    """质量评估应返回多维度分数。"""
+    report = evaluate_video("https://example.com/video.mp4", threshold=7.5, duration=5)
+    assert report.dimensions is not None
+    assert set(report.dimensions) == {"url", "file", "duration"}
+    assert report.score == 8.0

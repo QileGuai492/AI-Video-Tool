@@ -83,42 +83,49 @@ def _case_real_tts(ctx: EvalContext) -> EvalOutcome:
 
 
 def _case_real_video(ctx: EvalContext) -> EvalOutcome:
-    """真实文生视频冒烟：提交并轮询到成功（耗时较长，手动运行）。"""
+    """真实文生视频冒烟：提交并轮询到成功（耗时较长，手动运行）。
+
+    为避免 SiliconFlow 偶发失败导致评测不稳定，最多重试 1 次。
+    """
     if not _real_available():
         return _skipped("未配置 SILICONFLOW_API_KEY")
+
     provider = SiliconFlowVideoProvider()
-    handle = provider.submit_video_task(
-        VideoGenerationRequest(prompt="一只猫在夕阳下奔跑", duration=5, aspect_ratio="16:9")
-    )
+    all_trace: list[str] = []
     start = time.perf_counter()
-    trace = []
-    for _ in range(600):
-        status = provider.query_video_task(handle)
-        trace.append(status.state)
-        if status.state == "succeeded":
-            duration_ms = (time.perf_counter() - start) * 1000
-            return EvalOutcome(
-                status="pass",
-                score=1.0,
-                metrics={"耗时_ms": duration_ms},
-                details=f"视频 URL：{status.video_url}",
-                trace=trace,
-            )
-        if status.state == "failed":
-            return EvalOutcome(
-                status="fail",
-                score=0.0,
-                metrics={"耗时_ms": (time.perf_counter() - start) * 1000},
-                details=f"生成失败：{status.error_message}",
-                trace=trace,
-            )
-        time.sleep(1)
+
+    for attempt in range(2):
+        handle = provider.submit_video_task(
+            VideoGenerationRequest(prompt="一只猫在夕阳下奔跑", duration=5, aspect_ratio="16:9")
+        )
+        trace: list[str] = []
+        for _ in range(600):
+            status = provider.query_video_task(handle)
+            trace.append(status.state)
+            if status.state == "succeeded":
+                duration_ms = (time.perf_counter() - start) * 1000
+                return EvalOutcome(
+                    status="pass",
+                    score=1.0,
+                    metrics={"耗时_ms": duration_ms, "重试次数": float(attempt)},
+                    details=f"视频 URL：{status.video_url}",
+                    trace=all_trace + trace,
+                )
+            if status.state == "failed":
+                all_trace.extend(trace)
+                all_trace.append(f"attempt_{attempt}_failed")
+                break
+            time.sleep(1)
+        else:
+            all_trace.extend(trace)
+            all_trace.append(f"attempt_{attempt}_timeout")
+
     return EvalOutcome(
         status="fail",
         score=0.0,
         metrics={"耗时_ms": (time.perf_counter() - start) * 1000},
-        details="真实视频生成超时",
-        trace=trace,
+        details="真实视频生成失败或超时（已重试 1 次）",
+        trace=all_trace,
     )
 
 

@@ -46,9 +46,10 @@
 
 ## 当前状态
 
-- **阶段**：Sprint 1~4 核心能力已完成，支持 Docker 容器化部署。
-- **技术栈**：FastAPI + SQLAlchemy + Celery + Redis + LangGraph + Streamlit + SiliconFlow。
-- **下一步**：配置 `.env` 后启动服务，验证真实视频生成；后续可继续 Sprint 5。
+- **阶段**：Sprint 1~4 核心能力已完成，Sprint 5 功能增强与生产部署加固进行中。
+- **技术栈**：FastAPI + SQLAlchemy + Celery + Redis + LangGraph + Streamlit + SiliconFlow + Nginx。
+- **已支持**：真实视频生成、TTS、批量生成、模板市场、质量评估、Harness 评测、CI。
+- **下一步**：继续完善角色一致性、生产监控告警与正式前端。
 
 ## Docker 快速启动
 
@@ -65,9 +66,11 @@ docker compose exec api alembic upgrade head
 
 访问：
 
+- Nginx 入口：http://localhost（反向代理 API / 前端 / 上传）
 - 后端 API：http://localhost:8000
 - Streamlit 前端：http://localhost:8501
 - Flower 监控：http://localhost:5555
+- 监控指标：http://localhost:8000/api/v1/metrics
 
 ## 评测
 
@@ -90,7 +93,7 @@ python -m eval_harness --report logs/评测报告.md
 python -m eval_harness --clean
 ```
 
-评测默认使用 Mock Provider + 本地 SQLite，保证可复现、不产生真实 API 费用。当前默认包含 55 个核心用例，加入 `--real --judge` 后共 60 个。报告输出到：
+评测默认使用 Mock Provider + 本地 SQLite，保证可复现、不产生真实 API 费用。当前默认包含 58 个核心用例，加入 `--real --judge` 后共 63 个。报告输出到：
 
 - `logs/评测报告.md`
 

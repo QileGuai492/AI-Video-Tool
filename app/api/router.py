@@ -9,6 +9,7 @@ from app.api.routes import (
     cost,
     generate,
     history,
+    monitor,
     subtitle,
     templates,
     upload,
@@ -24,3 +25,4 @@ api_router.include_router(upload.router)
 api_router.include_router(audio.router)
 api_router.include_router(subtitle.router)
 api_router.include_router(cost.router)
+api_router.include_router(monitor.router)
