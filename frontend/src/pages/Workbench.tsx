@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Button, Card, Col, Input, List, Row, Space, Typography, message } from "antd";
 import client from "../api/client";
 import EditorToolbar from "../components/EditorToolbar";
+import KeyframeList from "../components/KeyframeList";
+import ObjectProperties from "../components/ObjectProperties";
 import PrevisCanvas from "../components/PrevisCanvas";
 import Timeline from "../components/Timeline";
 import { usePrevisStore } from "../previs/store";
@@ -204,7 +206,9 @@ export default function Workbench() {
               />
             )}
           </Card>
-          <Card title="白模编辑">
+          <ObjectProperties />
+          <KeyframeList />
+          <Card title="白模编辑" style={{ marginTop: 16 }}>
             <EditorToolbar onSave={handleSave} />
             <PrevisCanvas onRecorded={handleRecorded} />
             <Timeline />

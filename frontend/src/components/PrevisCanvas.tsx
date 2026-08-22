@@ -84,6 +84,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
   const clockRef = useRef<THREE.Clock>(new THREE.Clock());
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const cameraPathLineRef = useRef<THREE.Line | null>(null);
   const [isRecording, setIsRecording] = useState(false);
 
   const objects = usePrevisStore((state) => state.objects);
@@ -145,6 +146,14 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
 
     const grid = new THREE.GridHelper(10, 10, 0x888888, 0x444444);
     scene.add(grid);
+
+    const cameraPathLine = new THREE.Line(
+      new THREE.BufferGeometry(),
+      new THREE.LineBasicMaterial({ color: 0x00ff88 })
+    );
+    cameraPathLine.visible = false;
+    scene.add(cameraPathLine);
+    cameraPathLineRef.current = cameraPathLine;
     const light = new THREE.DirectionalLight(0xffffff, 1);
     light.position.set(5, 10, 5);
     scene.add(light);
@@ -286,6 +295,20 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTime, cameraKeyframes]);
+
+  useEffect(() => {
+    const line = cameraPathLineRef.current;
+    if (!line) return;
+    if (cameraKeyframes.length >= 2) {
+      const positions: number[] = [];
+      cameraKeyframes.forEach((frame) => positions.push(...frame.position));
+      line.geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      line.geometry.computeBoundingSphere();
+      line.visible = true;
+    } else {
+      line.visible = false;
+    }
+  }, [cameraKeyframes]);
 
   const startRecording = () => {
     const renderer = rendererRef.current;
