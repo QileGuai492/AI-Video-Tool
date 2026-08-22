@@ -124,7 +124,8 @@ export default function Workbench() {
       setPrevisVideoUrl(response.data.previs_video_url);
       message.success("白模视频已上传并转 MP4");
     } catch (error) {
-      message.error("白模视频上传失败");
+      console.error("白模视频上传失败", error);
+      message.error("白模视频上传失败，请检查后端与 PUBLIC_BASE_URL 配置");
     }
   };
 

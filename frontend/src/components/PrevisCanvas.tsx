@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { message } from "antd";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
@@ -308,32 +309,55 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
 
   const startRecording = () => {
     const renderer = rendererRef.current;
-    if (!renderer) return;
-    const stream = renderer.domElement.captureStream(30);
-    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-      ? "video/webm;codecs=vp9"
-      : "video/webm";
-    const recorder = new MediaRecorder(stream, { mimeType });
-    chunksRef.current = [];
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) chunksRef.current.push(event.data);
-    };
-    recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "previs.webm";
-      a.click();
-      URL.revokeObjectURL(url);
-      onRecorded?.(blob);
+    if (!renderer) {
+      message.error("3D 编辑器尚未初始化");
+      return;
+    }
+    if (typeof renderer.domElement.captureStream !== "function") {
+      message.error("当前浏览器不支持白模视频录制，请使用 Chrome / Edge");
+      return;
+    }
+    if (typeof MediaRecorder === "undefined") {
+      message.error("当前浏览器不支持 MediaRecorder，无法录制");
+      return;
+    }
+
+    try {
+      const stream = renderer.domElement.captureStream(30);
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : "video/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      chunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mimeType });
+        if (blob.size === 0) {
+          message.error("录制失败：生成的视频为空");
+          setIsRecording(false);
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "previs.webm";
+        a.click();
+        URL.revokeObjectURL(url);
+        onRecorded?.(blob);
+        setIsRecording(false);
+      };
+      recorder.start();
+      recorderRef.current = recorder;
+      setIsRecording(true);
+      usePrevisStore.getState().setCurrentTime(0);
+      usePrevisStore.getState().setIsPlaying(true);
+    } catch (error) {
+      console.error("白模录制失败", error);
+      message.error("白模视频录制失败，请查看浏览器控制台");
       setIsRecording(false);
-    };
-    recorder.start();
-    recorderRef.current = recorder;
-    setIsRecording(true);
-    usePrevisStore.getState().setCurrentTime(0);
-    usePrevisStore.getState().setIsPlaying(true);
+    }
   };
 
   const stopRecording = () => {

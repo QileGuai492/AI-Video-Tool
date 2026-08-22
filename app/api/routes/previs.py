@@ -165,6 +165,11 @@ async def upload_previs_video(
             convert_webm_to_mp4(source, output)
             content = output.read_bytes()
             suffix = "mp4"
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"白模视频转 MP4 失败：{exc}",
+            ) from exc
         finally:
             source.unlink(missing_ok=True)
             output.unlink(missing_ok=True)
