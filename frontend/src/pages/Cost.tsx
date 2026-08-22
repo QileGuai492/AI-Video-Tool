@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Col, Descriptions, Input, Row, Space, Statistic, message } from "antd";
+import { Button, Card, Col, Descriptions, Input, Row, Space, Statistic } from "antd";
 import client from "../api/client";
 
 interface CostSummary {
@@ -12,17 +12,13 @@ export default function Cost() {
   const [summary, setSummary] = useState<CostSummary | null>(null);
   const [taskId, setTaskId] = useState<number | undefined>();
   const [taskDetail, setTaskDetail] = useState<unknown>(null);
-  const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const response = await client.get("/cost/summary");
       setSummary(response.data);
     } catch {
       // 忽略
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -65,19 +61,19 @@ export default function Cost() {
           />
           <Button onClick={handleQueryTask}>查询</Button>
         </Space>
-        {taskDetail && (
+        {taskDetail ? (
           <Descriptions column={1} style={{ marginTop: 16 }}>
             <Descriptions.Item label="任务 ID">
-              {(taskDetail as { task_id?: number }).task_id}
+              {String((taskDetail as { task_id?: number }).task_id ?? "")}
             </Descriptions.Item>
             <Descriptions.Item label="总成本">
-              {(taskDetail as { total_cost?: number }).total_cost} 元
+              {String((taskDetail as { total_cost?: number }).total_cost ?? 0)} 元
             </Descriptions.Item>
             <Descriptions.Item label="明细">
               <pre>{JSON.stringify((taskDetail as { items?: unknown }).items ?? [], null, 2)}</pre>
             </Descriptions.Item>
           </Descriptions>
-        )}
+        ) : null}
       </Card>
     </div>
   );

@@ -36,6 +36,7 @@ node_modules/
 frontend/dist/
 frontend/.npm-cache/
 frontend/test-reports/
+frontend/*.tsbuildinfo
 .vite/
 
 # IDE / 系统

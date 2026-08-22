@@ -76,7 +76,7 @@ function interpolateTransform(
 export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const cameraObjectRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const transformRef = useRef<TransformControls | null>(null);
@@ -90,12 +90,8 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const currentTime = usePrevisStore((state) => state.currentTime);
-  const isPlaying = usePrevisStore((state) => state.isPlaying);
   const keyframes = usePrevisStore((state) => state.keyframes);
   const cameraKeyframes = usePrevisStore((state) => state.cameraKeyframes);
-  const duration = usePrevisStore((state) => state.duration);
-  const setCurrentTime = usePrevisStore((state) => state.setCurrentTime);
-  const setIsPlaying = usePrevisStore((state) => state.setIsPlaying);
   const updateObject = usePrevisStore((state) => state.updateObject);
 
   const objectSignature = useMemo(
@@ -114,7 +110,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
     camera.position.set(5, 4, 5);
     camera.lookAt(0, 0, 0);
-    cameraRef.current = camera;
+    cameraObjectRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
@@ -270,7 +266,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
 
   // 按时间轴插值相机
   useEffect(() => {
-    const camera = cameraRef.current;
+    const camera = cameraObjectRef.current;
     const controls = controlsRef.current;
     if (!camera || !controls || cameraKeyframes.length === 0) return;
 
@@ -358,5 +354,4 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       </div>
     </div>
   );
-}
 }

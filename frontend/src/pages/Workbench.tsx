@@ -23,6 +23,8 @@ const emptyScene: SceneState = {
   objects: [],
   keyframes: {},
   cameraKeyframes: [],
+  shotMarkers: [],
+  shotDescriptions: {},
   duration: 5,
 };
 

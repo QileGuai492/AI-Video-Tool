@@ -1,0 +1,2 @@
+# 每日凌晨 2 点备份数据库与上传文件
+0 2 * * * cd /path/to/ai-video-tool && ./deploy/backup.sh /data/backups >> /var/log/ai-video-backup.log 2>&1
