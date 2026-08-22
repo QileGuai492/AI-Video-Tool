@@ -19,6 +19,7 @@ class GenerateVideoRequest(BaseModel):
     previs_type: str | None = None
     reference_video_url: str | None = None
     previs_project_id: int | None = None
+    camera_script: dict | None = None
 
 
 class GenerateBatchRequest(BaseModel):

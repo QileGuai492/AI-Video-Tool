@@ -29,6 +29,8 @@ interface PrevisStore extends SceneState {
   addKeyframe: (objectId: string, time: number) => void;
   removeKeyframe: (objectId: string, time: number) => void;
   addCameraKeyframe: (time: number, position: Vec3, target: Vec3) => void;
+  addShotMarker: (time: number) => void;
+  removeShotMarker: (time: number) => void;
   setDuration: (duration: number) => void;
   exportScene: () => SceneState;
   loadScene: (scene: SceneState) => void;
@@ -38,6 +40,7 @@ const defaultState: SceneState = {
   objects: [],
   keyframes: {},
   cameraKeyframes: [],
+  shotMarkers: [],
   duration: 5,
 };
 
@@ -132,11 +135,25 @@ export const usePrevisStore = create<PrevisStore>((set, get) => ({
     }));
   },
 
+  addShotMarker: (time) => {
+    set((state) => ({
+      shotMarkers: [...state.shotMarkers.filter((item) => Math.abs(item - time) > 0.01), time].sort(
+        (a, b) => a - b
+      ),
+    }));
+  },
+
+  removeShotMarker: (time) => {
+    set((state) => ({
+      shotMarkers: state.shotMarkers.filter((item) => Math.abs(item - time) > 0.01),
+    }));
+  },
+
   setDuration: (duration) => set({ duration: Math.max(1, duration) }),
 
   exportScene: () => {
-    const { objects, keyframes, cameraKeyframes, duration } = get();
-    return { objects, keyframes, cameraKeyframes, duration };
+    const { objects, keyframes, cameraKeyframes, shotMarkers, duration } = get();
+    return { objects, keyframes, cameraKeyframes, shotMarkers, duration };
   },
 
   loadScene: (scene) => {
@@ -144,6 +161,7 @@ export const usePrevisStore = create<PrevisStore>((set, get) => ({
       objects: scene.objects ?? [],
       keyframes: scene.keyframes ?? {},
       cameraKeyframes: scene.cameraKeyframes ?? [],
+      shotMarkers: scene.shotMarkers ?? [],
       duration: scene.duration ?? 5,
       selectedObjectId: null,
       currentTime: 0,

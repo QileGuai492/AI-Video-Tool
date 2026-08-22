@@ -7,6 +7,7 @@ describe("previsStore", () => {
       objects: [],
       keyframes: {},
       cameraKeyframes: [],
+      shotMarkers: [],
       duration: 5,
       selectedObjectId: null,
       currentTime: 0,
@@ -53,5 +54,14 @@ describe("previsStore", () => {
     const state = usePrevisStore.getState();
     expect(state.objects).toHaveLength(0);
     expect(state.keyframes[id]).toBeUndefined();
+  });
+
+  it("addShotMarker 与 removeShotMarker 应维护镜头切点", () => {
+    usePrevisStore.getState().addShotMarker(1);
+    usePrevisStore.getState().addShotMarker(3);
+    usePrevisStore.getState().addShotMarker(1);
+    expect(usePrevisStore.getState().shotMarkers).toEqual([1, 3]);
+    usePrevisStore.getState().removeShotMarker(1);
+    expect(usePrevisStore.getState().shotMarkers).toEqual([3]);
   });
 });

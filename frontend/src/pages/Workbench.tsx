@@ -33,6 +33,8 @@ export default function Workbench() {
   const [projects, setProjects] = useState<PrevisProjectItem[]>([]);
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
+  const shotMarkers = usePrevisStore((state) => state.shotMarkers);
+  const duration = usePrevisStore((state) => state.duration);
   const selectObject = usePrevisStore((state) => state.selectObject);
   const loadScene = usePrevisStore((state) => state.loadScene);
 
@@ -62,12 +64,24 @@ export default function Workbench() {
     loadScene(emptyScene);
   };
 
+  const buildCameraScript = () => {
+    const markers = [0, ...shotMarkers.filter((marker) => marker > 0 && marker < duration), duration].sort(
+      (a, b) => a - b
+    );
+    const shots = markers.slice(0, -1).map((start, index) => ({
+      start,
+      end: markers[index + 1],
+    }));
+    return { shots };
+  };
+
   const ensureProject = async (scene: unknown): Promise<number> => {
     if (projectId !== null) return projectId;
     const response = await client.post("/previs/projects", {
       title: "未命名白模项目",
       mode: "manual",
       scene_json: scene,
+      camera_script: buildCameraScript(),
     });
     setProjectId(response.data.id);
     await loadProjects();
@@ -78,7 +92,10 @@ export default function Workbench() {
     setSaving(true);
     try {
       const id = await ensureProject(scene);
-      await client.put(`/previs/projects/${id}`, { scene_json: scene });
+      await client.put(`/previs/projects/${id}`, {
+        scene_json: scene,
+        camera_script: buildCameraScript(),
+      });
       message.success("白模项目已保存");
     } catch (error) {
       message.error("保存失败，请检查登录状态");
@@ -115,6 +132,7 @@ export default function Workbench() {
         prompt: prompt.trim(),
         previs_video_url: previsVideoUrl,
         previs_type: "coarse",
+        camera_script: buildCameraScript(),
         duration: 5,
         aspect_ratio: "16:9",
         quality: "standard",

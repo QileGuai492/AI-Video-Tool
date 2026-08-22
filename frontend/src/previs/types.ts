@@ -28,5 +28,6 @@ export interface SceneState {
   objects: SceneObject[];
   keyframes: Record<string, Keyframe[]>;
   cameraKeyframes: CameraKeyframe[];
+  shotMarkers: number[];
   duration: number;
 }

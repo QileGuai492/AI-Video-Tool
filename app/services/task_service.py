@@ -44,6 +44,7 @@ def create_video_task(db: Session, user_id: int, request: GenerateVideoRequest) 
         previs_type=request.previs_type,
         reference_video_url=request.reference_video_url,
         previs_project_id=request.previs_project_id,
+        camera_script=request.camera_script,
     )
     db.add(task)
     db.commit()
