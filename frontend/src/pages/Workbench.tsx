@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Card, Col, Input, List, Row, Space, Typography, message } from "antd";
+import { Alert, Button, Card, Col, Input, List, Row, Space, Typography, message } from "antd";
 import client from "../api/client";
 import EditorToolbar from "../components/EditorToolbar";
 import KeyframeList from "../components/KeyframeList";
@@ -162,43 +162,50 @@ export default function Workbench() {
 
   return (
     <div>
-      <Title level={3}>创作工作台</Title>
-      <Paragraph>第一版重点：自由建模 + 关键帧动画，后续接入白模生成与 AI 成片。</Paragraph>
+      <Title level={3} style={{ marginBottom: 4 }}>
+        创作工作台
+      </Title>
+      <Paragraph type="secondary">自由建模 → 关键帧动画 → 白模视频 → AI 成片</Paragraph>
       <Row gutter={16}>
-        <Col span={10}>
+        {/* 左侧：项目 / 对象 / 属性 / 关键帧 */}
+        <Col span={5}>
           <Card
-            title="我的白模项目"
-            style={{ marginBottom: 16 }}
+            title="项目"
+            size="small"
             extra={<Button size="small" onClick={handleNewProject}>新建</Button>}
           >
             {projects.length === 0 ? (
-              <Paragraph type="secondary">暂无项目</Paragraph>
+              <Text type="secondary">暂无项目</Text>
             ) : (
               <List
                 size="small"
                 dataSource={projects}
                 renderItem={(project) => (
                   <List.Item
-                    style={{ cursor: "pointer" }}
+                    style={{ cursor: "pointer", padding: "6px 0" }}
                     onClick={() => handleLoadProject(project)}
                   >
-                    {project.title}
-                    <Text type="secondary">（{project.status}）</Text>
+                    <Space direction="vertical" size={0}>
+                      <Text>{project.title}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {project.status}
+                      </Text>
+                    </Space>
                   </List.Item>
                 )}
               />
             )}
           </Card>
-          <Card title="对象列表" style={{ marginBottom: 16 }}>
+          <Card title="对象" size="small" style={{ marginTop: 12 }}>
             {objects.length === 0 ? (
-              <Paragraph type="secondary">暂无对象，请从上方工具栏添加。</Paragraph>
+              <Text type="secondary">暂无对象</Text>
             ) : (
               <List
                 size="small"
                 dataSource={objects}
                 renderItem={(obj) => (
                   <List.Item
-                    style={{ cursor: "pointer" }}
+                    style={{ cursor: "pointer", padding: "6px 0" }}
                     onClick={() => selectObject(obj.id)}
                     className={obj.id === selectedObjectId ? "ant-list-item-selected" : ""}
                   >
@@ -208,23 +215,33 @@ export default function Workbench() {
               />
             )}
           </Card>
-          <ObjectProperties />
-          <KeyframeList />
-          <Card title="白模编辑" style={{ marginTop: 16 }}>
+          <div style={{ marginTop: 12 }}>
+            <ObjectProperties />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <KeyframeList />
+          </div>
+        </Col>
+
+        {/* 中间：3D 编辑器 */}
+        <Col span={12}>
+          <Card title="白模编辑" size="small">
             <EditorToolbar onSave={handleSave} />
             <PrevisCanvas onRecorded={handleRecorded} />
             <Timeline />
           </Card>
         </Col>
-        <Col span={14}>
-          <Card title="AI 成片">
+
+        {/* 右侧：AI 成片 / 镜头描述 */}
+        <Col span={7}>
+          <Card title="AI 成片" size="small">
             <Input.TextArea
               rows={4}
               placeholder="输入成片文案，例如：一只猫在夕阳下奔跑"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
             />
-            <Space direction="vertical" style={{ width: "100%", marginTop: 16 }}>
+            <Space direction="vertical" style={{ width: "100%", marginTop: 12 }}>
               <Text type="secondary">
                 {previsVideoUrl ? "白模视频已就绪，可以提交生成" : "请先录制白模视频"}
               </Text>
@@ -233,7 +250,7 @@ export default function Workbench() {
               </Button>
             </Space>
           </Card>
-          <Card title="镜头描述" style={{ marginTop: 16 }}>
+          <Card title="镜头描述" size="small" style={{ marginTop: 12 }}>
             {shotStarts.length <= 1 ? (
               <Text type="secondary">请先在时间轴添加镜头切点</Text>
             ) : (
@@ -265,34 +282,25 @@ export default function Workbench() {
               </Space>
             )}
           </Card>
-          <Card title="提示" style={{ marginTop: 16 }}>
-            <Paragraph>
-              1. 添加方块/圆柱/球体/平面/灰模人形。
-              <br />
-              2. 点击对象列表选中对象。
-              <br />
-              3. 使用 Gizmo 移动/旋转/缩放。
-              <br />
-              4. 在时间轴拖动到目标时间，点击“记录关键帧”。
-              <br />
-              5. 点击“记录相机”保存当前相机关键帧。
-              <br />
-              6. 点击“播放”预览动画。
-              <br />
-              7. 点击“录制视频”，完成后自动上传并转 MP4。
-              <br />
-              8. 填写文案后点击“提交 AI 生成”。
-            </Paragraph>
-          </Card>
+          {projectId && (
+            <Button
+              loading={saving}
+              block
+              style={{ marginTop: 12 }}
+              onClick={() => handleSave(usePrevisStore.getState().exportScene())}
+            >
+              保存项目
+            </Button>
+          )}
         </Col>
       </Row>
-      {projectId && (
-        <Space style={{ marginTop: 8 }}>
-          <Button loading={saving} onClick={() => handleSave(usePrevisStore.getState().exportScene())}>
-            再次保存
-          </Button>
-        </Space>
-      )}
+      <Alert
+        style={{ marginTop: 16 }}
+        type="info"
+        showIcon
+        message="使用提示"
+        description="添加对象后，在左侧对象列表选中；使用 Gizmo 调整变换；在时间轴记录关键帧与镜头切点；点击“录制视频”上传白模，再填写文案提交 AI 生成。"
+      />
     </div>
   );
 }
