@@ -3,8 +3,10 @@
 覆盖认证、视频任务提交/状态/下载、参数校验、角色库、历史记录、成本汇总。
 """
 
+import shutil
 import time
 import uuid
+from pathlib import Path
 
 from app.models import User, VideoTask
 from eval_harness.models import EvalCase, EvalContext, EvalOutcome
@@ -781,6 +783,58 @@ def _case_previs_flow(ctx: EvalContext) -> EvalOutcome:
     )
 
 
+def _case_previs_generate(ctx: EvalContext) -> EvalOutcome:
+    """白模降级生成：携带白模视频与镜头配置应能完成成片。"""
+    headers, _ = _register(ctx, "previsgen")
+    video_dir = Path("uploads/videos")
+    video_dir.mkdir(parents=True, exist_ok=True)
+    target = video_dir / "previs_eval.mp4"
+    shutil.copyfile(Path("app/providers/assets/mock_clip.mp4"), target)
+
+    response = ctx.client.post(
+        "/api/v1/generate/video",
+        headers=headers,
+        json={
+            "prompt": "白模降级评测",
+            "previs_video_url": "/uploads/videos/previs_eval.mp4",
+            "previs_type": "coarse",
+            "camera_script": {
+                "shots": [
+                    {"start": 0, "end": 0.5, "action": "人物走入画面", "camera": "侧面跟拍"},
+                    {"start": 0.5, "end": 1.0, "action": "人物停下转身", "camera": "正面中景"},
+                ]
+            },
+            "duration": 5,
+            "aspect_ratio": "16:9",
+            "quality": "standard",
+        },
+    )
+    if response.status_code != 200:
+        return _outcome(False, 0.0, {}, f"提交失败：{response.text}")
+    task_id = response.json()["id"]
+
+    status = None
+    for _ in range(20):
+        status = ctx.client.get(f"/api/v1/generate/status/{task_id}", headers=headers)
+        if status.status_code == 200 and status.json()["status"] in {"completed", "failed", "cancelled"}:
+            break
+        time.sleep(0.5)
+
+    checks = {
+        "任务提交成功": response.status_code == 200,
+        "任务完成": status is not None and status.json().get("status") == "completed",
+        "进度为 1": status is not None and status.json().get("progress") == 1.0,
+    }
+    score = sum(checks.values()) / len(checks)
+    return _outcome(
+        ok=score == 1.0,
+        score=score,
+        metrics={"任务ID": float(task_id)},
+        details=f"任务状态：{status.json().get('status') if status else 'unknown'}",
+        trace=list(checks.items()),
+    )
+
+
 def build_system_cases() -> list[EvalCase]:
     """构建系统级评测用例集。"""
     return [
@@ -888,4 +942,5 @@ def build_system_cases() -> list[EvalCase]:
         EvalCase(id="system.template_market", name="模板市场", category="system", target="api_template", description="模板市场应能列出并复制模板。", fn=_case_template_market),
         EvalCase(id="system.metrics", name="监控指标", category="system", target="api_monitor", description="监控指标接口应返回基础运行数据。", fn=_case_metrics),
         EvalCase(id="system.previs_flow", name="白模预演流程", category="system", target="api_previs", description="白模模板、项目、更新与渲染应可用。", fn=_case_previs_flow),
+        EvalCase(id="system.previs_generate", name="白模降级生成", category="system", target="api_generate", description="携带白模视频与镜头配置应能完成成片。", fn=_case_previs_generate),
     ]

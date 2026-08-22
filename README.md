@@ -96,7 +96,7 @@ python -m eval_harness --report logs/评测报告.md
 python -m eval_harness --clean
 ```
 
-评测默认使用 Mock Provider + 本地 SQLite，保证可复现、不产生真实 API 费用。当前默认包含 58 个核心用例，加入 `--real --judge` 后共 63 个。报告输出到：
+评测默认使用 Mock Provider + 本地 SQLite，保证可复现、不产生真实 API 费用。当前默认包含 60 个核心用例，加入 `--real --judge` 后共 65 个。报告输出到：
 
 - `logs/评测报告.md`
 
