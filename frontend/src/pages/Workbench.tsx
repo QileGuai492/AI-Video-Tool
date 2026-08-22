@@ -1,39 +1,84 @@
 import { useState } from "react";
-import { Button, Card, Col, List, Row, Space, Typography, message } from "antd";
+import { Button, Card, Col, Input, List, Row, Space, Typography, message } from "antd";
 import client from "../api/client";
 import EditorToolbar from "../components/EditorToolbar";
 import PrevisCanvas from "../components/PrevisCanvas";
 import Timeline from "../components/Timeline";
 import { usePrevisStore } from "../previs/store";
 
-const { Title, Paragraph } = Typography;
+const { Title, Paragraph, Text } = Typography;
 
 export default function Workbench() {
   const [projectId, setProjectId] = useState<number | null>(null);
+  const [previsVideoUrl, setPrevisVideoUrl] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState("");
   const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const selectObject = usePrevisStore((state) => state.selectObject);
 
+  const ensureProject = async (scene: unknown): Promise<number> => {
+    if (projectId !== null) return projectId;
+    const response = await client.post("/previs/projects", {
+      title: "未命名白模项目",
+      mode: "manual",
+      scene_json: scene,
+    });
+    setProjectId(response.data.id);
+    return response.data.id as number;
+  };
+
   const handleSave = async (scene: unknown) => {
     setSaving(true);
     try {
-      if (projectId === null) {
-        const response = await client.post("/previs/projects", {
-          title: "未命名白模项目",
-          mode: "manual",
-          scene_json: scene,
-        });
-        setProjectId(response.data.id);
-        message.success("白模项目已创建");
-      } else {
-        await client.put(`/previs/projects/${projectId}`, { scene_json: scene });
-        message.success("白模项目已保存");
-      }
+      const id = await ensureProject(scene);
+      await client.put(`/previs/projects/${id}`, { scene_json: scene });
+      message.success("白模项目已保存");
     } catch (error) {
       message.error("保存失败，请检查登录状态");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRecorded = async (blob: Blob) => {
+    try {
+      const id = await ensureProject(usePrevisStore.getState().exportScene());
+      const formData = new FormData();
+      formData.append("file", blob, "previs.webm");
+      const response = await client.post(`/previs/projects/${id}/video`, formData);
+      setPrevisVideoUrl(response.data.previs_video_url);
+      message.success("白模视频已上传并转 MP4");
+    } catch (error) {
+      message.error("白模视频上传失败");
+    }
+  };
+
+  const handleSubmitGenerate = async () => {
+    if (!previsVideoUrl) {
+      message.warning("请先录制并上传白模视频");
+      return;
+    }
+    if (!prompt.trim()) {
+      message.warning("请输入成片文案");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const response = await client.post("/generate/video", {
+        prompt: prompt.trim(),
+        previs_video_url: previsVideoUrl,
+        previs_type: "coarse",
+        duration: 5,
+        aspect_ratio: "16:9",
+        quality: "standard",
+      });
+      message.success(`AI 生成任务已提交，任务 ID：${response.data.id}`);
+    } catch (error) {
+      message.error("AI 生成任务提交失败");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -64,12 +109,28 @@ export default function Workbench() {
           </Card>
           <Card title="白模编辑">
             <EditorToolbar onSave={handleSave} />
-            <PrevisCanvas />
+            <PrevisCanvas onRecorded={handleRecorded} />
             <Timeline />
           </Card>
         </Col>
         <Col span={14}>
-          <Card title="提示">
+          <Card title="AI 成片">
+            <Input.TextArea
+              rows={4}
+              placeholder="输入成片文案，例如：一只猫在夕阳下奔跑"
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+            />
+            <Space direction="vertical" style={{ width: "100%", marginTop: 16 }}>
+              <Text type="secondary">
+                {previsVideoUrl ? "白模视频已就绪，可以提交生成" : "请先录制白模视频"}
+              </Text>
+              <Button type="primary" block loading={submitting} onClick={handleSubmitGenerate}>
+                提交 AI 生成
+              </Button>
+            </Space>
+          </Card>
+          <Card title="提示" style={{ marginTop: 16 }}>
             <Paragraph>
               1. 添加方块/圆柱/球体/平面/灰模人形。
               <br />
@@ -82,6 +143,10 @@ export default function Workbench() {
               5. 点击“记录相机”保存当前相机关键帧。
               <br />
               6. 点击“播放”预览动画。
+              <br />
+              7. 点击“录制视频”，完成后自动上传并转 MP4。
+              <br />
+              8. 填写文案后点击“提交 AI 生成”。
             </Paragraph>
           </Card>
         </Col>

@@ -73,7 +73,7 @@ function interpolateTransform(
   return null;
 }
 
-export default function PrevisCanvas() {
+export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -307,6 +307,7 @@ export default function PrevisCanvas() {
       a.download = "previs.webm";
       a.click();
       URL.revokeObjectURL(url);
+      onRecorded?.(blob);
       setIsRecording(false);
     };
     recorder.start();

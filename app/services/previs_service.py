@@ -20,6 +20,39 @@ def _resolve_local_path(video_url: str) -> Path:
     raise ValueError("当前仅支持本地 /uploads/ 白模视频抽帧")
 
 
+def _get_ffmpeg() -> str:
+    """返回可用的 FFmpeg 可执行文件路径。"""
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is not None:
+        return ffmpeg
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError("未找到 FFmpeg") from exc
+
+
+def convert_webm_to_mp4(source: Path, output: Path) -> Path:
+    """将 WebM 转换为 MP4（H.264 + yuv420p）。"""
+    ffmpeg = _get_ffmpeg()
+    command = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(source),
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        str(output),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=600)
+    if result.returncode != 0:
+        raise RuntimeError(f"FFmpeg 转 MP4 失败：{result.stderr[-500:]}")
+    return output
+
+
 def extract_keyframes(
     video_url: str,
     interval_seconds: float = 1.0,
@@ -32,14 +65,7 @@ def extract_keyframes(
     if not source.exists():
         raise FileNotFoundError(f"白模视频不存在：{source}")
 
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg is None:
-        try:
-            import imageio_ffmpeg
-
-            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-        except Exception as exc:  # noqa: BLE001
-            raise RuntimeError("未找到 FFmpeg，无法抽取关键帧") from exc
+    ffmpeg = _get_ffmpeg()
 
     output_dir = Path("uploads/previs_frames")
     output_dir.mkdir(parents=True, exist_ok=True)

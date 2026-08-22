@@ -1,6 +1,9 @@
 """白模预演接口。"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -14,6 +17,8 @@ from app.schemas.previs import (
     PrevisTemplateCreate,
     PrevisTemplateRead,
 )
+from app.services.previs_service import convert_webm_to_mp4
+from app.storage import storage
 
 router = APIRouter(prefix="/previs", tags=["白模预演"])
 
@@ -132,6 +137,42 @@ def render_previs_project(
     project.status = "rendering"
     db.commit()
     # TODO: 接入真实白模渲染服务后，这里改为异步任务
+    project.status = "ready"
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.post("/projects/{project_id}/video", response_model=PrevisProjectRead)
+async def upload_previs_video(
+    project_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PrevisProject:
+    """上传白模视频，WebM 自动转 MP4 并更新项目。"""
+    project = _get_owned_project(db, project_id, current_user.id)
+    suffix = Path(file.filename or "").suffix.lower().lstrip(".")
+    content = await file.read()
+
+    if suffix == "webm":
+        tmp_dir = Path("uploads/previs_tmp")
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        source = tmp_dir / f"{uuid.uuid4().hex}.webm"
+        output = tmp_dir / f"{uuid.uuid4().hex}.mp4"
+        source.write_bytes(content)
+        try:
+            convert_webm_to_mp4(source, output)
+            content = output.read_bytes()
+            suffix = "mp4"
+        finally:
+            source.unlink(missing_ok=True)
+            output.unlink(missing_ok=True)
+    elif suffix != "mp4":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持 mp4 或 webm 文件")
+
+    key = storage.upload(content=content, suffix=suffix, folder="previs")
+    project.previs_video_url = storage.get_url(key)
     project.status = "ready"
     db.commit()
     db.refresh(project)
