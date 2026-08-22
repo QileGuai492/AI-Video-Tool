@@ -1,12 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Card, Col, Input, List, Row, Space, Typography, message } from "antd";
 import client from "../api/client";
 import EditorToolbar from "../components/EditorToolbar";
 import PrevisCanvas from "../components/PrevisCanvas";
 import Timeline from "../components/Timeline";
 import { usePrevisStore } from "../previs/store";
+import type { SceneState } from "../previs/types";
 
 const { Title, Paragraph, Text } = Typography;
+
+interface PrevisProjectItem {
+  id: number;
+  title: string;
+  status: string;
+  scene_json: SceneState;
+  previs_video_url: string | null;
+}
+
+const emptyScene: SceneState = {
+  objects: [],
+  keyframes: {},
+  cameraKeyframes: [],
+  duration: 5,
+};
 
 export default function Workbench() {
   const [projectId, setProjectId] = useState<number | null>(null);
@@ -14,9 +30,37 @@ export default function Workbench() {
   const [prompt, setPrompt] = useState("");
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [projects, setProjects] = useState<PrevisProjectItem[]>([]);
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const selectObject = usePrevisStore((state) => state.selectObject);
+  const loadScene = usePrevisStore((state) => state.loadScene);
+
+  const loadProjects = async () => {
+    try {
+      const response = await client.get("/previs/projects");
+      setProjects(response.data);
+    } catch {
+      // 忽略
+    }
+  };
+
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  const handleLoadProject = (project: PrevisProjectItem) => {
+    setProjectId(project.id);
+    setPrevisVideoUrl(project.previs_video_url);
+    loadScene(project.scene_json ?? emptyScene);
+    message.success(`已加载项目：${project.title}`);
+  };
+
+  const handleNewProject = () => {
+    setProjectId(null);
+    setPrevisVideoUrl(null);
+    loadScene(emptyScene);
+  };
 
   const ensureProject = async (scene: unknown): Promise<number> => {
     if (projectId !== null) return projectId;
@@ -26,6 +70,7 @@ export default function Workbench() {
       scene_json: scene,
     });
     setProjectId(response.data.id);
+    await loadProjects();
     return response.data.id as number;
   };
 
@@ -88,6 +133,29 @@ export default function Workbench() {
       <Paragraph>第一版重点：自由建模 + 关键帧动画，后续接入白模生成与 AI 成片。</Paragraph>
       <Row gutter={16}>
         <Col span={10}>
+          <Card
+            title="我的白模项目"
+            style={{ marginBottom: 16 }}
+            extra={<Button size="small" onClick={handleNewProject}>新建</Button>}
+          >
+            {projects.length === 0 ? (
+              <Paragraph type="secondary">暂无项目</Paragraph>
+            ) : (
+              <List
+                size="small"
+                dataSource={projects}
+                renderItem={(project) => (
+                  <List.Item
+                    style={{ cursor: "pointer" }}
+                    onClick={() => handleLoadProject(project)}
+                  >
+                    {project.title}
+                    <Text type="secondary">（{project.status}）</Text>
+                  </List.Item>
+                )}
+              />
+            )}
+          </Card>
           <Card title="对象列表" style={{ marginBottom: 16 }}>
             {objects.length === 0 ? (
               <Paragraph type="secondary">暂无对象，请从上方工具栏添加。</Paragraph>

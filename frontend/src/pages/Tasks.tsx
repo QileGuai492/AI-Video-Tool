@@ -44,6 +44,8 @@ export default function Tasks() {
 
   useEffect(() => {
     load();
+    const timer = window.setInterval(load, 5000);
+    return () => window.clearInterval(timer);
   }, [load]);
 
   const handleDownload = async (taskId: number) => {
