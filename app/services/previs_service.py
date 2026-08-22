@@ -126,6 +126,20 @@ def extract_shot_keyframes(video_url: str, shots: list[dict]) -> list[str]:
     return urls
 
 
+def build_segment_prompt(base_prompt: str, shot: dict | None) -> str:
+    """将镜头动作/运镜描述合并到基础提示词中。"""
+    if not shot:
+        return base_prompt
+    action = shot.get("action", "")
+    camera = shot.get("camera", "")
+    parts = [base_prompt]
+    if action:
+        parts.append(f"动作：{action}")
+    if camera:
+        parts.append(f"运镜：{camera}")
+    return "；".join(parts)
+
+
 def build_shot_prompt(
     mapping_rules: dict | None,
     shot: dict,

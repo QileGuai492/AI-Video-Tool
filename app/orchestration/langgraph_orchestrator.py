@@ -23,7 +23,11 @@ from app.providers.base import (
 from app.providers.registry import registry
 from app.services.audio_service import generate_tts_audio
 from app.services.media_download import download_and_store_video
-from app.services.previs_service import extract_keyframes, extract_shot_keyframes
+from app.services.previs_service import (
+    build_segment_prompt,
+    extract_keyframes,
+    extract_shot_keyframes,
+)
 from app.services.quality_service import evaluate_video
 from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
@@ -222,11 +226,14 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
         segment_urls: list[str] = []
         mock_clip_path = Path("app/providers/assets/mock_clip.mp4")
         placeholder_content = mock_clip_path.read_bytes() if mock_clip_path.exists() else b"mock-video"
+        camera_shots = (task.camera_script or {}).get("shots", [])
 
         for index in range(segment_count):
             frame_url = previs_frames[index % len(previs_frames)] if previs_frames else state.get("first_frame_url")
+            shot = camera_shots[index] if index < len(camera_shots) else None
+            segment_prompt = build_segment_prompt(state.get("optimized_prompt") or task.prompt, shot)
             request = VideoGenerationRequest(
-                prompt=state.get("optimized_prompt") or task.prompt,
+                prompt=segment_prompt,
                 first_frame_url=frame_url,
                 duration=5,
                 aspect_ratio=task.aspect_ratio or "16:9",
@@ -247,7 +254,7 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                 task_id=task.id,
                 segment_index=index,
                 video_url=video_url,
-                prompt_used=state.get("optimized_prompt"),
+                prompt_used=segment_prompt,
                 model_used=provider.name,
                 duration=5,
             )

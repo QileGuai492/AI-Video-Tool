@@ -26,7 +26,11 @@ from app.providers.base import ImageGenerationRequest, LLMRequest, VideoGenerati
 from app.providers.registry import registry
 from app.services.audio_service import generate_tts_audio
 from app.services.media_download import download_and_store_video
-from app.services.previs_service import extract_keyframes, extract_shot_keyframes
+from app.services.previs_service import (
+    build_segment_prompt,
+    extract_keyframes,
+    extract_shot_keyframes,
+)
 from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
 from app.services.video_stitcher import StitchingError, stitch_videos
@@ -133,11 +137,14 @@ class SimpleTaskOrchestrator:
             mock_clip_path = Path("app/providers/assets/mock_clip.mp4")
             placeholder_video_content = mock_clip_path.read_bytes()
             segment_urls: list[str] = []
+            camera_shots = (task.camera_script or {}).get("shots", [])
 
             for index in range(segment_count):
                 frame_url = previs_frames[index % len(previs_frames)] if previs_frames else first_frame_url
+                shot = camera_shots[index] if index < len(camera_shots) else None
+                segment_prompt = build_segment_prompt(task.optimized_prompt or task.prompt, shot)
                 video_request = VideoGenerationRequest(
-                    prompt=task.optimized_prompt or task.prompt,
+                    prompt=segment_prompt,
                     first_frame_url=frame_url,
                     reference_image_urls=reference_image_urls,
                     duration=5,
@@ -164,7 +171,7 @@ class SimpleTaskOrchestrator:
                     task_id=task.id,
                     segment_index=index,
                     video_url=segment_url,
-                    prompt_used=task.optimized_prompt,
+                    prompt_used=segment_prompt,
                     model_used=video_provider.name,
                     duration=5,
                 )
