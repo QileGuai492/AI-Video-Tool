@@ -70,6 +70,33 @@ def download_video_file(task_id: int) -> httpx.Response:
     )
 
 
+def upload_image_file(uploaded_file) -> str | None:
+    """上传图片到后端，返回可访问 URL；失败返回 None。"""
+    if uploaded_file is None:
+        return None
+    token = st.session_state.get("token")
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    files = {
+        "file": (
+            uploaded_file.name,
+            uploaded_file.getvalue(),
+            uploaded_file.type or "image/png",
+        )
+    }
+    response = httpx.post(
+        f"{API_PREFIX}/upload?file_type=image",
+        headers=headers,
+        files=files,
+        timeout=60,
+    )
+    if response.status_code == 200:
+        return response.json()["file_url"]
+    st.error(get_error_message(response, "图片上传失败"))
+    return None
+
+
 def render_login_register() -> None:
     """登录 / 注册页面。"""
     st.title("AI 视频生成工具")
@@ -120,21 +147,31 @@ def render_create() -> None:
     selected_character = st.selectbox("选择角色（可选）", list(character_options.keys()))
     character_id = character_options[selected_character]
 
+    uploaded_image = st.file_uploader("上传参考图片（可选）", type=["png", "jpg", "jpeg", "webp"])
+
     if st.button("开始生成"):
         if not prompt.strip():
             st.warning("请输入创意")
             return
+        image_url = None
+        if uploaded_image is not None:
+            image_url = upload_image_file(uploaded_image)
+            if image_url is None:
+                return
+        payload = {
+            "prompt": prompt.strip(),
+            "duration": duration,
+            "aspect_ratio": aspect_ratio,
+            "quality": quality,
+            "character_id": character_id,
+        }
+        if image_url:
+            payload["image_url"] = image_url
         response = api_request(
             "POST",
             "/generate/video",
             token=st.session_state.get("token"),
-            json={
-                "prompt": prompt.strip(),
-                "duration": duration,
-                "aspect_ratio": aspect_ratio,
-                "quality": quality,
-                "character_id": character_id,
-            },
+            json=payload,
         )
         if response.status_code == 200:
             data = response.json()
@@ -152,27 +189,36 @@ def render_characters() -> None:
     with st.form("create_character_form"):
         st.markdown("### 创建角色")
         name = st.text_input("角色名称")
-        reference_image_url = st.text_input("参考图 URL")
+        reference_image_url = st.text_input("参考图 URL（上传图片后可留空）")
+        uploaded_reference = st.file_uploader("上传参考图", type=["png", "jpg", "jpeg", "webp"])
         description = st.text_area("角色描述（选填）")
         submitted = st.form_submit_button("保存角色")
         if submitted:
-            if not name.strip() or not reference_image_url.strip():
-                st.warning("角色名称和参考图 URL 必填")
+            if not name.strip():
+                st.warning("角色名称必填")
             else:
-                response = api_request(
-                    "POST",
-                    "/characters",
-                    token=st.session_state.get("token"),
-                    json={
-                        "name": name.strip(),
-                        "reference_image_url": reference_image_url.strip(),
-                        "description": description.strip() or None,
-                    },
-                )
-                if response.status_code == 200:
-                    st.success("角色已保存")
+                final_reference_url = reference_image_url.strip() or None
+                if uploaded_reference is not None:
+                    final_reference_url = upload_image_file(uploaded_reference)
+                    if final_reference_url is None:
+                        return
+                if not final_reference_url:
+                    st.warning("请填写参考图 URL 或上传参考图")
                 else:
-                    st.error(get_error_message(response, "保存失败"))
+                    response = api_request(
+                        "POST",
+                        "/characters",
+                        token=st.session_state.get("token"),
+                        json={
+                            "name": name.strip(),
+                            "reference_image_url": final_reference_url,
+                            "description": description.strip() or None,
+                        },
+                    )
+                    if response.status_code == 200:
+                        st.success("角色已保存")
+                    else:
+                        st.error(get_error_message(response, "保存失败"))
 
     # 角色列表
     st.markdown("### 角色列表")
@@ -207,22 +253,35 @@ def render_characters() -> None:
         # 添加多角度图
         with st.form(f"add_multi_view_{character_id}"):
             view_name = st.text_input("角度名称", key=f"view_name_{character_id}")
-            image_url = st.text_input("图片 URL", key=f"image_url_{character_id}")
+            image_url = st.text_input("图片 URL（上传图片后可留空）", key=f"image_url_{character_id}")
+            uploaded_view = st.file_uploader(
+                "上传多角度图",
+                type=["png", "jpg", "jpeg", "webp"],
+                key=f"upload_view_{character_id}",
+            )
             add_submitted = st.form_submit_button("添加多角度图")
             if add_submitted:
-                if not view_name.strip() or not image_url.strip():
-                    st.warning("角度名称和图片 URL 必填")
+                if not view_name.strip():
+                    st.warning("角度名称必填")
                 else:
-                    add_response = api_request(
-                        "POST",
-                        f"/characters/{character_id}/multi-views",
-                        token=st.session_state.get("token"),
-                        json={"view_name": view_name.strip(), "image_url": image_url.strip()},
-                    )
-                    if add_response.status_code == 200:
-                        st.success("多角度图已添加")
+                    final_view_url = image_url.strip() or None
+                    if uploaded_view is not None:
+                        final_view_url = upload_image_file(uploaded_view)
+                        if final_view_url is None:
+                            return
+                    if not final_view_url:
+                        st.warning("请填写图片 URL 或上传图片")
                     else:
-                        st.error(add_response.json().get("detail", "添加失败"))
+                        add_response = api_request(
+                            "POST",
+                            f"/characters/{character_id}/multi-views",
+                            token=st.session_state.get("token"),
+                            json={"view_name": view_name.strip(), "image_url": final_view_url},
+                        )
+                        if add_response.status_code == 200:
+                            st.success("多角度图已添加")
+                        else:
+                            st.error(add_response.json().get("detail", "添加失败"))
 
 
 def render_audio_subtitle() -> None:
