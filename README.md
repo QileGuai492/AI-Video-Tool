@@ -122,6 +122,20 @@ python scripts/generate_allure_report.py
 - `allure-results/`：测试结果原始数据
 - `allure-report/`：HTML 报告
 
+## 前端测试报告
+
+前端使用 Vitest，运行测试时会自动输出 JSON 报告：
+
+```bash
+cd frontend
+npm install
+npm run test
+```
+
+报告产物：
+
+- `frontend/test-reports/results.json`
+
 ## 文档维护约定
 
 - 每份文档顶部保留 `状态` 和 `最近更新` 字段。

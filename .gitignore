@@ -35,6 +35,7 @@ allure-report/
 node_modules/
 frontend/dist/
 frontend/.npm-cache/
+frontend/test-reports/
 .vite/
 
 # IDE / 系统
