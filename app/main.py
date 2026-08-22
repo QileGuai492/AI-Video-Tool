@@ -19,6 +19,8 @@ from app.models import (  # noqa: F401  确保模型注册到 Base.metadata
     Character,
     CharacterMultiView,
     GenerationLog,
+    PrevisProject,
+    PrevisTemplate,
     Setting,
     TaskConfigSnapshot,
     TaskError,

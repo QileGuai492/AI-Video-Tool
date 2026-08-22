@@ -33,6 +33,8 @@ class EvalContextImpl:
     """评测上下文实现。"""
 
     def __init__(self) -> None:
+        # 每次评测重置数据库，保证新增表/字段后仍可复现
+        Base.metadata.drop_all(bind=engine)
         Base.metadata.create_all(bind=engine)
         # 强制只保留 Mock Provider，保证评测可复现、不依赖外部 API
         registry.image_providers = {"mock": registry.image_providers["mock"]}

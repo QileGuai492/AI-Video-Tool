@@ -10,6 +10,13 @@ from app.schemas.character import (
     CharacterRead,
 )
 from app.schemas.cost import CostItemRead, CostSummaryRead, CostTaskRead
+from app.schemas.previs import (
+    PrevisProjectCreate,
+    PrevisProjectRead,
+    PrevisProjectUpdate,
+    PrevisTemplateCreate,
+    PrevisTemplateRead,
+)
 from app.schemas.subtitle import SubtitleGenerateRequest, SubtitleRead
 from app.schemas.task import (
     GenerateVideoRequest,
@@ -31,6 +38,11 @@ __all__ = [
     "CostTaskRead",
     "GenerateVideoRequest",
     "LoginRequest",
+    "PrevisProjectCreate",
+    "PrevisProjectRead",
+    "PrevisProjectUpdate",
+    "PrevisTemplateCreate",
+    "PrevisTemplateRead",
     "RegisterRequest",
     "SubtitleGenerateRequest",
     "SubtitleRead",

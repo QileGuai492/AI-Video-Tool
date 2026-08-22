@@ -35,6 +35,8 @@ class VideoGenerationRequest:
     prompt: str
     first_frame_url: str | None = None
     reference_image_urls: list[str] = field(default_factory=list)
+    reference_video_url: str | None = None
+    previs_type: str | None = None
     duration: int = 5
     aspect_ratio: str = "16:9"
     resolution: str = "720p"

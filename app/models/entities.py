@@ -35,6 +35,8 @@ class User(Base):
     characters: Mapped[list["Character"]] = relationship(back_populates="user")
     video_tasks: Mapped[list["VideoTask"]] = relationship(back_populates="user")
     templates: Mapped[list["Template"]] = relationship(back_populates="user")
+    previs_templates: Mapped[list["PrevisTemplate"]] = relationship(back_populates="user")
+    previs_projects: Mapped[list["PrevisProject"]] = relationship(back_populates="user")
 
 
 class Character(Base):
@@ -85,6 +87,13 @@ class VideoTask(Base):
     resolution: Mapped[str | None] = mapped_column(String(32), nullable=True)
     aspect_ratio: Mapped[str | None] = mapped_column(String(16), nullable=True)
     cost: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    previs_video_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    previs_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    previs_scene_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    storyboard_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    camera_script: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    reference_video_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    previs_project_id: Mapped[int | None] = mapped_column(ForeignKey("previs_projects.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
@@ -94,6 +103,7 @@ class VideoTask(Base):
     retries: Mapped[list["TaskRetry"]] = relationship(back_populates="task")
     errors: Mapped[list["TaskError"]] = relationship(back_populates="task")
     config_snapshot: Mapped["TaskConfigSnapshot | None"] = relationship(back_populates="task", uselist=False)
+    previs_project: Mapped["PrevisProject | None"] = relationship(back_populates="video_tasks")
 
 
 class VideoSegment(Base):
@@ -128,6 +138,48 @@ class Template(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="templates")
+
+
+class PrevisTemplate(Base):
+    """白模预演模板。"""
+
+    __tablename__ = "previs_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    thumbnail_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    scene_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    is_builtin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    user: Mapped["User | None"] = relationship(back_populates="previs_templates")
+    projects: Mapped[list["PrevisProject"]] = relationship(back_populates="template")
+
+
+class PrevisProject(Base):
+    """白模预演项目。"""
+
+    __tablename__ = "previs_projects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    template_id: Mapped[int | None] = mapped_column(ForeignKey("previs_templates.id"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(128), default="未命名白模项目", nullable=False)
+    mode: Mapped[str] = mapped_column(String(16), default="manual", nullable=False)  # template / auto / manual
+    scene_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    camera_script: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    mapping_rules: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    previs_video_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="previs_projects")
+    template: Mapped["PrevisTemplate | None"] = relationship(back_populates="projects")
+    video_tasks: Mapped[list["VideoTask"]] = relationship(back_populates="previs_project")
 
 
 class AudioTrack(Base):

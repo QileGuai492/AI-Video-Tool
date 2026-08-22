@@ -40,6 +40,10 @@ def create_video_task(db: Session, user_id: int, request: GenerateVideoRequest) 
         duration=request.duration,
         aspect_ratio=request.aspect_ratio,
         cost=estimate_cost(request.duration, request.quality),
+        previs_video_url=request.previs_video_url,
+        previs_type=request.previs_type,
+        reference_video_url=request.reference_video_url,
+        previs_project_id=request.previs_project_id,
     )
     db.add(task)
     db.commit()

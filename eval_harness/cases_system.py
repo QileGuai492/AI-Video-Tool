@@ -728,6 +728,59 @@ def _case_metrics(ctx: EvalContext) -> EvalOutcome:
     )
 
 
+def _case_previs_flow(ctx: EvalContext) -> EvalOutcome:
+    """白模预演：模板、项目、更新与渲染应可用。"""
+    headers, _ = _register(ctx, "previs")
+    template = ctx.client.post(
+        "/api/v1/previs/templates",
+        headers=headers,
+        json={"name": "评测白模模板", "description": "测试", "scene_json": {"objects": []}, "category": "人物"},
+    )
+    if template.status_code != 200:
+        return _outcome(False, 0.0, {}, f"创建模板失败：{template.text}")
+    template_id = template.json()["id"]
+
+    project = ctx.client.post(
+        "/api/v1/previs/projects",
+        headers=headers,
+        json={
+            "title": "评测白模项目",
+            "template_id": template_id,
+            "mode": "manual",
+            "scene_json": {"objects": [{"type": "box"}]},
+            "camera_script": {"shots": []},
+            "mapping_rules": {"blue": "女主"},
+        },
+    )
+    if project.status_code != 200:
+        return _outcome(False, 0.0, {}, f"创建项目失败：{project.text}")
+    project_id = project.json()["id"]
+
+    update = ctx.client.put(
+        f"/api/v1/previs/projects/{project_id}",
+        headers=headers,
+        json={"title": "改名后的白模项目"},
+    )
+    render = ctx.client.post(f"/api/v1/previs/projects/{project_id}/render", headers=headers)
+    detail = ctx.client.get(f"/api/v1/previs/projects/{project_id}", headers=headers)
+
+    checks = {
+        "模板创建成功": template.status_code == 200,
+        "项目创建成功": project.status_code == 200,
+        "项目更新成功": update.status_code == 200 and update.json()["title"] == "改名后的白模项目",
+        "渲染成功": render.status_code == 200 and render.json()["status"] == "ready",
+        "详情可查": detail.status_code == 200 and detail.json()["id"] == project_id,
+    }
+    score = sum(checks.values()) / len(checks)
+    return _outcome(
+        ok=score == 1.0,
+        score=score,
+        metrics={"项目ID": float(project_id)},
+        details=f"模板：{template.status_code}，项目：{project.status_code}，渲染：{render.status_code}",
+        trace=list(checks.items()),
+    )
+
+
 def build_system_cases() -> list[EvalCase]:
     """构建系统级评测用例集。"""
     return [
@@ -834,4 +887,5 @@ def build_system_cases() -> list[EvalCase]:
         EvalCase(id="system.batch_generate", name="批量生成", category="system", target="api_generate", description="批量提交应返回多个任务 ID。", fn=_case_batch_generate),
         EvalCase(id="system.template_market", name="模板市场", category="system", target="api_template", description="模板市场应能列出并复制模板。", fn=_case_template_market),
         EvalCase(id="system.metrics", name="监控指标", category="system", target="api_monitor", description="监控指标接口应返回基础运行数据。", fn=_case_metrics),
+        EvalCase(id="system.previs_flow", name="白模预演流程", category="system", target="api_previs", description="白模模板、项目、更新与渲染应可用。", fn=_case_previs_flow),
     ]
