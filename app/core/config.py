@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     siliconflow_image_model: str = "Qwen/Qwen-Image"
     siliconflow_video_model: str = "Wan-AI/Wan2.2-T2V-A14B"
 
+    # Agnes AI（免费全模态 API）
+    agnes_api_key: str | None = None
+    agnes_base_url: str = "https://apihub.agnes-ai.com/v1"
+    agnes_llm_model: str = "agnes-2.0-flash"
+    agnes_image_model: str = "agnes-image-2.1-flash"
+    agnes_video_model: str = "agnes-video-v2.0"
+
     # 阿里云 OSS
     oss_access_key_id: str | None = None
     oss_access_key_secret: str | None = None

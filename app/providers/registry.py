@@ -35,6 +35,17 @@ class ProviderRegistry:
         """根据环境变量注册真实 Provider，未配置 Key 时跳过。"""
         settings = get_settings()
 
+        if settings.agnes_api_key:
+            from app.providers.agnes import (
+                AgnesImageProvider,
+                AgnesLLMProvider,
+                AgnesVideoProvider,
+            )
+
+            self.llm_providers["agnes"] = AgnesLLMProvider()
+            self.image_providers["agnes"] = AgnesImageProvider()
+            self.video_providers["agnes"] = AgnesVideoProvider()
+
         if settings.siliconflow_api_key:
             from app.providers.siliconflow import (
                 SiliconFlowImageProvider,
