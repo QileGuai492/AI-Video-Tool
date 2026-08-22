@@ -1,7 +1,8 @@
 import { Button, Space, Typography } from "antd";
+import { useRef } from "react";
 import { cameraRef } from "../previs/cameraRef";
 import { usePrevisStore } from "../previs/store";
-import type { ObjectType } from "../previs/types";
+import type { ObjectType, SceneState } from "../previs/types";
 
 const { Text } = Typography;
 
@@ -10,10 +11,14 @@ export default function EditorToolbar({ onSave }: { onSave?: (scene: unknown) =>
   const currentTime = usePrevisStore((state) => state.currentTime);
   const isPlaying = usePrevisStore((state) => state.isPlaying);
   const addObject = usePrevisStore((state) => state.addObject);
+  const removeObject = usePrevisStore((state) => state.removeObject);
+  const duplicateObject = usePrevisStore((state) => state.duplicateObject);
   const addKeyframe = usePrevisStore((state) => state.addKeyframe);
   const addCameraKeyframe = usePrevisStore((state) => state.addCameraKeyframe);
   const setIsPlaying = usePrevisStore((state) => state.setIsPlaying);
   const exportScene = usePrevisStore((state) => state.exportScene);
+  const loadScene = usePrevisStore((state) => state.loadScene);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const objectTypes: { type: ObjectType; label: string }[] = [
     { type: "box", label: "方块" },
@@ -34,6 +39,19 @@ export default function EditorToolbar({ onSave }: { onSave?: (scene: unknown) =>
     URL.revokeObjectURL(url);
   };
 
+  const handleImport = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const scene = JSON.parse(String(reader.result)) as SceneState;
+        loadScene(scene);
+      } catch {
+        // 忽略解析失败
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <Space wrap style={{ marginBottom: 16 }}>
       <Text strong>添加对象：</Text>
@@ -49,11 +67,29 @@ export default function EditorToolbar({ onSave }: { onSave?: (scene: unknown) =>
       >
         记录关键帧
       </Button>
+      <Button disabled={!selectedObjectId} onClick={() => selectedObjectId && duplicateObject(selectedObjectId)}>
+        复制
+      </Button>
+      <Button danger disabled={!selectedObjectId} onClick={() => selectedObjectId && removeObject(selectedObjectId)}>
+        删除
+      </Button>
       <Button onClick={() => addCameraKeyframe(currentTime, cameraRef.position, cameraRef.target)}>
         记录相机
       </Button>
       <Button onClick={() => setIsPlaying(!isPlaying)}>{isPlaying ? "暂停" : "播放"}</Button>
       <Button onClick={handleExport}>导出 JSON</Button>
+      <Button onClick={() => fileInputRef.current?.click()}>导入 JSON</Button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json"
+        style={{ display: "none" }}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) handleImport(file);
+          event.target.value = "";
+        }}
+      />
       {onSave && <Button onClick={() => onSave(exportScene())}>保存项目</Button>}
     </Space>
   );

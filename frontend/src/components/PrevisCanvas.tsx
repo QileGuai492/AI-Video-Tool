@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
@@ -82,6 +82,9 @@ export default function PrevisCanvas() {
   const transformRef = useRef<TransformControls | null>(null);
   const meshMapRef = useRef<Map<string, THREE.Object3D>>(new Map());
   const clockRef = useRef<THREE.Clock>(new THREE.Clock());
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
 
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
@@ -156,6 +159,9 @@ export default function PrevisCanvas() {
         if (next >= usePrevisStore.getState().duration) {
           usePrevisStore.getState().setIsPlaying(false);
           usePrevisStore.getState().setCurrentTime(usePrevisStore.getState().duration);
+          if (recorderRef.current && recorderRef.current.state === "recording") {
+            recorderRef.current.stop();
+          }
         } else {
           usePrevisStore.getState().setCurrentTime(next);
         }
@@ -281,5 +287,52 @@ export default function PrevisCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTime, cameraKeyframes]);
 
-  return <div ref={containerRef} style={{ width: "100%", height: 480 }} />;
+  const startRecording = () => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    const stream = renderer.domElement.captureStream(30);
+    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      ? "video/webm;codecs=vp9"
+      : "video/webm";
+    const recorder = new MediaRecorder(stream, { mimeType });
+    chunksRef.current = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunksRef.current.push(event.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "previs.webm";
+      a.click();
+      URL.revokeObjectURL(url);
+      setIsRecording(false);
+    };
+    recorder.start();
+    recorderRef.current = recorder;
+    setIsRecording(true);
+    usePrevisStore.getState().setCurrentTime(0);
+    usePrevisStore.getState().setIsPlaying(true);
+  };
+
+  const stopRecording = () => {
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      recorderRef.current.stop();
+    }
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div ref={containerRef} style={{ width: "100%", height: 480 }} />
+      <div style={{ position: "absolute", top: 8, right: 8 }}>
+        {isRecording ? (
+          <button onClick={stopRecording}>停止录制</button>
+        ) : (
+          <button onClick={startRecording}>录制视频</button>
+        )}
+      </div>
+    </div>
+  );
+}
 }

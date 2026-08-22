@@ -20,6 +20,8 @@ interface PrevisStore extends SceneState {
   currentTime: number;
   isPlaying: boolean;
   addObject: (type: ObjectType) => void;
+  removeObject: (id: string) => void;
+  duplicateObject: (id: string) => void;
   updateObject: (id: string, patch: Partial<Pick<SceneObject, "position" | "rotation" | "scale">>) => void;
   selectObject: (id: string | null) => void;
   setCurrentTime: (time: number) => void;
@@ -55,6 +57,29 @@ export const usePrevisStore = create<PrevisStore>((set, get) => ({
     };
     const obj = createObject(type, names[type]);
     set((state) => ({ objects: [...state.objects, obj], selectedObjectId: obj.id }));
+  },
+
+  removeObject: (id) => {
+    set((state) => {
+      const objects = state.objects.filter((obj) => obj.id !== id);
+      const keyframes = { ...state.keyframes };
+      delete keyframes[id];
+      return {
+        objects,
+        keyframes,
+        selectedObjectId: state.selectedObjectId === id ? null : state.selectedObjectId,
+      };
+    });
+  },
+
+  duplicateObject: (id) => {
+    const source = get().objects.find((obj) => obj.id === id);
+    if (!source) return;
+    const copy = createObject(source.type, `${source.name}（副本）`);
+    copy.position = [...source.position];
+    copy.rotation = [...source.rotation];
+    copy.scale = [...source.scale];
+    set((state) => ({ objects: [...state.objects, copy], selectedObjectId: copy.id }));
   },
 
   updateObject: (id, patch) => {
