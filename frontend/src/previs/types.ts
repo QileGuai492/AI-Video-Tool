@@ -24,10 +24,16 @@ export interface CameraKeyframe {
   target: Vec3;
 }
 
+export interface ShotDescription {
+  action: string;
+  camera: string;
+}
+
 export interface SceneState {
   objects: SceneObject[];
   keyframes: Record<string, Keyframe[]>;
   cameraKeyframes: CameraKeyframe[];
   shotMarkers: number[];
+  shotDescriptions: Record<number, ShotDescription>;
   duration: number;
 }

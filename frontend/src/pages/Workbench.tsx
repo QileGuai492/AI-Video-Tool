@@ -34,9 +34,11 @@ export default function Workbench() {
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const shotMarkers = usePrevisStore((state) => state.shotMarkers);
+  const shotDescriptions = usePrevisStore((state) => state.shotDescriptions);
   const duration = usePrevisStore((state) => state.duration);
   const selectObject = usePrevisStore((state) => state.selectObject);
   const loadScene = usePrevisStore((state) => state.loadScene);
+  const setShotDescription = usePrevisStore((state) => state.setShotDescription);
 
   const loadProjects = async () => {
     try {
@@ -68,10 +70,15 @@ export default function Workbench() {
     const markers = [0, ...shotMarkers.filter((marker) => marker > 0 && marker < duration), duration].sort(
       (a, b) => a - b
     );
-    const shots = markers.slice(0, -1).map((start, index) => ({
-      start,
-      end: markers[index + 1],
-    }));
+    const shots = markers.slice(0, -1).map((start, index) => {
+      const description = shotDescriptions[start] ?? { action: "", camera: "" };
+      return {
+        start,
+        end: markers[index + 1],
+        action: description.action,
+        camera: description.camera,
+      };
+    });
     return { shots };
   };
 
@@ -145,6 +152,10 @@ export default function Workbench() {
     }
   };
 
+  const shotStarts = [0, ...shotMarkers.filter((marker) => marker > 0 && marker < duration), duration].sort(
+    (a, b) => a - b
+  );
+
   return (
     <div>
       <Title level={3}>创作工作台</Title>
@@ -215,6 +226,38 @@ export default function Workbench() {
                 提交 AI 生成
               </Button>
             </Space>
+          </Card>
+          <Card title="镜头描述" style={{ marginTop: 16 }}>
+            {shotStarts.length <= 1 ? (
+              <Text type="secondary">请先在时间轴添加镜头切点</Text>
+            ) : (
+              <Space direction="vertical" style={{ width: "100%" }}>
+                {shotStarts.slice(0, -1).map((start, index) => {
+                  const description = shotDescriptions[start] ?? { action: "", camera: "" };
+                  return (
+                    <Space key={start} direction="vertical" style={{ width: "100%" }}>
+                      <Text strong>
+                        镜头 {index + 1}（{start.toFixed(1)}s - {shotStarts[index + 1].toFixed(1)}s）
+                      </Text>
+                      <Input
+                        placeholder="动作描述"
+                        value={description.action}
+                        onChange={(event) =>
+                          setShotDescription(start, { ...description, action: event.target.value })
+                        }
+                      />
+                      <Input
+                        placeholder="运镜描述"
+                        value={description.camera}
+                        onChange={(event) =>
+                          setShotDescription(start, { ...description, camera: event.target.value })
+                        }
+                      />
+                    </Space>
+                  );
+                })}
+              </Space>
+            )}
           </Card>
           <Card title="提示" style={{ marginTop: 16 }}>
             <Paragraph>

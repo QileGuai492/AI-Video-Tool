@@ -88,6 +88,44 @@ def extract_keyframes(
     return [storage.get_url(f"previs_frames/{frame.name}") for frame in frames]
 
 
+def extract_shot_keyframes(video_url: str, shots: list[dict]) -> list[str]:
+    """按镜头区间从白模视频中每个镜头抽 1 帧（取镜头中点）。"""
+    if not shots:
+        return extract_keyframes(video_url)
+
+    source = _resolve_local_path(video_url)
+    if not source.exists():
+        raise FileNotFoundError(f"白模视频不存在：{source}")
+
+    ffmpeg = _get_ffmpeg()
+    output_dir = Path("uploads/previs_frames")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    urls: list[str] = []
+
+    for shot in shots:
+        start = float(shot.get("start", 0))
+        end = float(shot.get("end", start + 1))
+        capture_time = start + (end - start) / 2
+        output = output_dir / f"{uuid.uuid4().hex}.jpg"
+        command = [
+            ffmpeg,
+            "-y",
+            "-ss",
+            str(capture_time),
+            "-i",
+            str(source),
+            "-frames:v",
+            "1",
+            str(output),
+        ]
+        result = subprocess.run(command, capture_output=True, text=True, timeout=120)
+        if result.returncode != 0 or not output.exists():
+            raise RuntimeError(f"FFmpeg 镜头抽帧失败：{result.stderr[-500:]}")
+        urls.append(storage.get_url(f"previs_frames/{output.name}"))
+
+    return urls
+
+
 def build_shot_prompt(
     mapping_rules: dict | None,
     shot: dict,

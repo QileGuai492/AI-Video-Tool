@@ -8,6 +8,7 @@ describe("previsStore", () => {
       keyframes: {},
       cameraKeyframes: [],
       shotMarkers: [],
+      shotDescriptions: {},
       duration: 5,
       selectedObjectId: null,
       currentTime: 0,
@@ -63,5 +64,14 @@ describe("previsStore", () => {
     expect(usePrevisStore.getState().shotMarkers).toEqual([1, 3]);
     usePrevisStore.getState().removeShotMarker(1);
     expect(usePrevisStore.getState().shotMarkers).toEqual([3]);
+  });
+
+  it("setShotDescription 应保存镜头描述", () => {
+    usePrevisStore.getState().addShotMarker(2);
+    usePrevisStore.getState().setShotDescription(2, { action: "人物向前走", camera: "跟拍" });
+    expect(usePrevisStore.getState().shotDescriptions[2]).toEqual({
+      action: "人物向前走",
+      camera: "跟拍",
+    });
   });
 });

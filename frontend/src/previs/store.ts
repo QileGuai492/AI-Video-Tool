@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { CameraKeyframe, Keyframe, ObjectType, SceneObject, SceneState, Vec3 } from "./types";
+import type { CameraKeyframe, Keyframe, ObjectType, SceneObject, SceneState, ShotDescription, Vec3 } from "./types";
 
 let objectSeq = 0;
 
@@ -31,6 +31,7 @@ interface PrevisStore extends SceneState {
   addCameraKeyframe: (time: number, position: Vec3, target: Vec3) => void;
   addShotMarker: (time: number) => void;
   removeShotMarker: (time: number) => void;
+  setShotDescription: (time: number, description: ShotDescription) => void;
   setDuration: (duration: number) => void;
   exportScene: () => SceneState;
   loadScene: (scene: SceneState) => void;
@@ -41,6 +42,7 @@ const defaultState: SceneState = {
   keyframes: {},
   cameraKeyframes: [],
   shotMarkers: [],
+  shotDescriptions: {},
   duration: 5,
 };
 
@@ -144,16 +146,27 @@ export const usePrevisStore = create<PrevisStore>((set, get) => ({
   },
 
   removeShotMarker: (time) => {
+    set((state) => {
+      const shotDescriptions = { ...state.shotDescriptions };
+      delete shotDescriptions[time];
+      return {
+        shotMarkers: state.shotMarkers.filter((item) => Math.abs(item - time) > 0.01),
+        shotDescriptions,
+      };
+    });
+  },
+
+  setShotDescription: (time, description) => {
     set((state) => ({
-      shotMarkers: state.shotMarkers.filter((item) => Math.abs(item - time) > 0.01),
+      shotDescriptions: { ...state.shotDescriptions, [time]: description },
     }));
   },
 
   setDuration: (duration) => set({ duration: Math.max(1, duration) }),
 
   exportScene: () => {
-    const { objects, keyframes, cameraKeyframes, shotMarkers, duration } = get();
-    return { objects, keyframes, cameraKeyframes, shotMarkers, duration };
+    const { objects, keyframes, cameraKeyframes, shotMarkers, shotDescriptions, duration } = get();
+    return { objects, keyframes, cameraKeyframes, shotMarkers, shotDescriptions, duration };
   },
 
   loadScene: (scene) => {
@@ -162,6 +175,7 @@ export const usePrevisStore = create<PrevisStore>((set, get) => ({
       keyframes: scene.keyframes ?? {},
       cameraKeyframes: scene.cameraKeyframes ?? [],
       shotMarkers: scene.shotMarkers ?? [],
+      shotDescriptions: scene.shotDescriptions ?? {},
       duration: scene.duration ?? 5,
       selectedObjectId: null,
       currentTime: 0,

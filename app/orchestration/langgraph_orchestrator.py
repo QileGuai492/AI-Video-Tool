@@ -23,7 +23,7 @@ from app.providers.base import (
 from app.providers.registry import registry
 from app.services.audio_service import generate_tts_audio
 from app.services.media_download import download_and_store_video
-from app.services.previs_service import extract_keyframes
+from app.services.previs_service import extract_keyframes, extract_shot_keyframes
 from app.services.quality_service import evaluate_video
 from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
@@ -172,8 +172,12 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
                 reference_image_urls.extend(view.image_url for view in multi_views)
 
         if task.previs_video_url:
-            # 白模降级：抽帧作为每段首帧，不再单独生成首帧
-            previs_frames = extract_keyframes(task.previs_video_url)
+            # 白模降级：按镜头区间抽帧作为每段首帧，不再单独生成首帧
+            shots = (task.camera_script or {}).get("shots", [])
+            if shots:
+                previs_frames = extract_shot_keyframes(task.previs_video_url, shots)
+            else:
+                previs_frames = extract_keyframes(task.previs_video_url)
             if not previs_frames:
                 return {**state, "error": "白模视频未抽取到关键帧"}
             return {
