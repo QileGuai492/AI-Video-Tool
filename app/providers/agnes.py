@@ -76,6 +76,7 @@ class AgnesImageProvider:
         settings = get_settings()
         self.api_key = settings.agnes_api_key or ""
         self.base_url = settings.agnes_base_url.rstrip("/")
+        self.public_base_url = settings.public_base_url.rstrip("/")
         self.model = settings.agnes_image_model
 
     def generate_image(self, request: ImageGenerationRequest) -> ImageGenerationResult:
@@ -94,7 +95,7 @@ class AgnesImageProvider:
         }
         if request.reference_image_urls:
             payload["extra_body"] = {
-                "image": request.reference_image_urls,
+                "image": [self._to_public_url(url) for url in request.reference_image_urls],
                 "response_format": "url",
             }
 
@@ -114,6 +115,12 @@ class AgnesImageProvider:
             raw_response=data,
         )
 
+    def _to_public_url(self, url: str) -> str:
+        """将本地相对 URL 转为公网可访问 URL。"""
+        if url.startswith("/"):
+            return f"{self.public_base_url}{url}"
+        return url
+
     def _resolve_size(self, aspect_ratio: str) -> str:
         return {
             "16:9": "1280x720",
@@ -131,6 +138,7 @@ class AgnesVideoProvider:
         settings = get_settings()
         self.api_key = settings.agnes_api_key or ""
         self.base_url = settings.agnes_base_url.rstrip("/")
+        self.public_base_url = settings.public_base_url.rstrip("/")
         self.model = settings.agnes_video_model
 
     def submit_video_task(self, request: VideoGenerationRequest) -> VideoTaskHandle:
@@ -155,7 +163,7 @@ class AgnesVideoProvider:
             request.reference_image_urls[0] if request.reference_image_urls else None
         )
         if image_url:
-            payload["image"] = image_url
+            payload["image"] = self._to_public_url(image_url)
 
         response = httpx.post(
             f"{self.base_url}/videos",
@@ -195,6 +203,12 @@ class AgnesVideoProvider:
                 error_message=data.get("error") or "Agnes 视频生成失败",
             )
         return VideoTaskStatus(state="processing")
+
+    def _to_public_url(self, url: str) -> str:
+        """将本地相对 URL 转为公网可访问 URL。"""
+        if url.startswith("/"):
+            return f"{self.public_base_url}{url}"
+        return url
 
     def _resolve_size(self, aspect_ratio: str) -> tuple[int, int]:
         return {

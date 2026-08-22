@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "please_change_me_jwt"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
+    public_base_url: str = "http://localhost:8000"
 
     # 数据库
     database_url: str = "sqlite:///./ai_video.db"
