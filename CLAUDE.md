@@ -31,7 +31,7 @@
 - 技术专有名词（API、JWT、FFmpeg、LangGraph、PostgreSQL 等）可保留英文原词。
 - 代码中的标识符（变量名、函数名、类名、文件名等）保持英文命名。
 - 文档入口为 `README.md`，详细文档位于 `docs/`。
-- 技术栈：Python + FastAPI、Celery + Redis、LangGraph、PostgreSQL / SQLite、React / Streamlit、FFmpeg / MoviePy。
+- 技术栈：Python + FastAPI、Celery + Redis、LangGraph、PostgreSQL / SQLite、React、FFmpeg / MoviePy。
 - 外部 API 必须通过 provider 适配层封装。
 - 所有耗时任务异步化，HTTP 层只负责提交与查询。
 - 需求变更时先更新 `docs/02-需求与用户故事.md`，再同步相关文档。

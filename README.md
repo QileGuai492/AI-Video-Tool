@@ -50,7 +50,7 @@
 ## 当前状态
 
 - **阶段**：Sprint 1~4 核心能力已完成，Sprint 5 功能增强与生产部署加固进行中，白模升级 Phase 1 已启动。
-- **技术栈**：FastAPI + SQLAlchemy + Celery + Redis + LangGraph + Streamlit + SiliconFlow + Nginx + React/Three.js。
+- **技术栈**：FastAPI + SQLAlchemy + Celery + Redis + LangGraph + React/Three.js + SiliconFlow + Nginx。
 - **已支持**：真实视频生成、TTS、批量生成、模板市场、质量评估、Harness 评测、CI、白模预演 API、React 前端骨架。
 - **下一步**：完善白模编辑器自由建模与关键帧动画，接入降级生成流程。
 

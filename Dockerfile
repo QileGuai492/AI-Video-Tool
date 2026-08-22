@@ -1,4 +1,4 @@
-# 后端 / Worker / Streamlit 共用镜像
+# 后端 / Worker 共用镜像
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -19,7 +19,6 @@ COPY pyproject.toml README.md ./
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
-COPY streamlit_app.py ./
 
 # 预先安装构建依赖，避免每次构建时下载
 RUN pip install --no-cache-dir setuptools wheel
@@ -27,6 +26,6 @@ RUN pip install --no-cache-dir setuptools wheel
 # 安装项目（禁用构建隔离，减少网络依赖）
 RUN pip install --no-cache-dir --no-build-isolation .
 
-EXPOSE 8000 8501
+EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -11,5 +11,5 @@
 ## 核心信息
 
 - 项目：AI 视频生成工具（个人创作者版）。
-- 技术栈：Python + FastAPI、Celery + Redis、LangGraph、PostgreSQL / SQLite、React / Streamlit、FFmpeg / MoviePy。
+- 技术栈：Python + FastAPI、Celery + Redis、LangGraph、PostgreSQL / SQLite、React、FFmpeg / MoviePy。
 - 文档语言：中文；代码注释：中文；提交信息：中文。
