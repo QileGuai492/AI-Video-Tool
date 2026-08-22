@@ -70,7 +70,7 @@ docker compose exec api alembic upgrade head
 
 访问：
 
-- Nginx 入口：http://localhost（反向代理 API / React 前端 / 上传）
+- Nginx 入口：http://localhost:8080（反向代理 API / React 前端 / 上传）
 - React 前端：http://localhost:3000
 - 后端 API：http://localhost:8000
 - Flower 监控：http://localhost:5555
