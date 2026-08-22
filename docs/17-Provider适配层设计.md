@@ -1,7 +1,7 @@
 # 17 - Provider 适配层设计
 
-> 状态：已实现（Mock + 真实 Provider 骨架）  
-> 最近更新：2026-01-01  
+> 状态：已实现（Mock + Agnes + SiliconFlow + 其他骨架）  
+> 最近更新：2026-08-23  
 > 所属文档库：[README](../README.md)
 
 ## 1. 目的
@@ -51,6 +51,8 @@ class VideoProvider(Protocol):
 - `prompt: str`
 - `first_frame_url: str | None`
 - `reference_image_urls: list[str] | None`
+- `reference_video_url: str | None`
+- `previs_type: str | None`
 - `duration: int`
 - `aspect_ratio: str`
 - `resolution: str`
@@ -156,14 +158,19 @@ app/providers/
 ├── base.py            # 抽象接口与公共类型
 ├── registry.py        # Provider 注册与选择
 ├── mock.py            # Mock 实现
-├── siliconflow.py     # SiliconFlow（LLM / 文生图）
+├── agnes.py           # Agnes AI（LLM / 文生图 / 视频生成）
+├── siliconflow.py     # SiliconFlow（LLM / 文生图 / 视频生成 / TTS）
 ├── minimax.py         # MiniMax（视频生成）
 ├── tongyi.py          # 通义万相（文生图）
 ├── claude.py          # Claude（LLM）
 └── errors.py          # 内部错误码
 ```
 
-当前 SiliconFlow 已实现 LLM、文生图、视频生成与 TTS；视频/语音字段以官方文档为准。
+当前：
+
+- **Agnes AI** 已接入 LLM、文生图、视频生成，并完成真实白模端到端验证。
+- **SiliconFlow** 已接入 LLM、文生图、视频生成与 TTS。
+- Provider 选择优先级：配置了 `AGNES_API_KEY` 时优先使用 Agnes，否则使用 SiliconFlow，最后回退 Mock。
 
 ## 8. 注意事项
 
