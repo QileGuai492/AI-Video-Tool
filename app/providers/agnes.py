@@ -192,9 +192,15 @@ class AgnesVideoProvider:
 
         status = str(data.get("status") or "queued").lower()
         if status in {"completed", "succeeded", "success"}:
+            metadata = data.get("metadata") or {}
+            video_url = (
+                data.get("video_url")
+                or data.get("url")
+                or metadata.get("url")
+            )
             return VideoTaskStatus(
                 state="succeeded",
-                video_url=data.get("video_url") or data.get("url"),
+                video_url=video_url,
             )
         if status in {"failed", "error", "cancelled"}:
             return VideoTaskStatus(

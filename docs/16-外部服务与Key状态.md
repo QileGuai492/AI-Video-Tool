@@ -16,7 +16,7 @@
 | 通义万相 | 文生图 | 未申请 | 未配置 | 待确认 | ¥0.1~0.5/张 | Flux、SD | 阿里云账号 |
 | Claude API | 提示词优化 / 台词 | 未申请 | 未配置 | 待确认 | 按 token | GPT-4o-mini、Qwen、SiliconFlow | 需要海外支付方式 |
 | SiliconFlow（硅基流动） | 大模型 / 文生图 / 视频生成 / TTS | 已配置 | 已配置 | 待确认 | 按量 | Agnes、Claude、通义万相、MiniMax | OpenAI 兼容，已接入 LLM/文生图/视频/TTS |
-| Agnes AI | 大模型 / 文生图 / 视频生成 | 待注册 | 未配置 | 声称免费 | 免费 | SiliconFlow、MiniMax | 已接入 Provider，待 Key 验证 |
+| Agnes AI | 大模型 / 文生图 / 视频生成 | 已注册 | 已配置 | 声称免费 | 免费 | SiliconFlow、MiniMax | 已接入 Provider，白模端到端验证通过 |
 | 阿里云 OSS | 文件存储 | 未申请 | 未配置 | 有免费额度 | 按量 | 本地磁盘、其他对象存储 | 已有服务器可顺便开通 |
 | 阿里云 PostgreSQL | 数据库 | 未申请 | 未配置 | 无 | 按量 | 本地 Docker PostgreSQL | 也可先用 SQLite |
 | Redis | 队列 / 缓存 | 无需申请 | 本地 Docker | 免费 | 免费 | 无 | 本地开发即可 |

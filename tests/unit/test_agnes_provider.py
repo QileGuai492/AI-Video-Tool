@@ -74,7 +74,12 @@ def test_agnes_video_submit_and_query(monkeypatch) -> None:
 
     def fake_get(url, headers=None, timeout=None):
         assert "/videos/task-123" in url
-        return FakeResponse({"status": "completed", "video_url": "https://agnes.example.com/video.mp4"})
+        return FakeResponse(
+            {
+                "status": "completed",
+                "metadata": {"url": "https://agnes.example.com/video.mp4"},
+            }
+        )
 
     monkeypatch.setattr(httpx, "post", fake_post)
     monkeypatch.setattr(httpx, "get", fake_get)
