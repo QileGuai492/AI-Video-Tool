@@ -1,7 +1,6 @@
-"""新增白模预演数据模型。"""
+"""新增白模预演数据模型（幂等）。"""
 
 from alembic import op
-import sqlalchemy as sa
 
 revision = "0004_add_previs_models"
 down_revision = "0003_add_audio_subtitle_urls"
@@ -10,34 +9,40 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """创建白模表并扩展 video_tasks。"""
-    op.create_table(
-        "previs_templates",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=True, index=True),
-        sa.Column("name", sa.String(length=128), nullable=False),
-        sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("thumbnail_url", sa.String(length=512), nullable=True),
-        sa.Column("scene_json", sa.JSON(), nullable=False),
-        sa.Column("category", sa.String(length=64), nullable=True),
-        sa.Column("is_builtin", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
+    """创建白模表并扩展 video_tasks（表/字段均幂等）。"""
+    op.execute(
+        """
+        CREATE TABLE IF NOT EXISTS previs_templates (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id),
+            name VARCHAR(128) NOT NULL,
+            description TEXT,
+            thumbnail_url VARCHAR(512),
+            scene_json JSON NOT NULL,
+            category VARCHAR(64),
+            is_builtin BOOLEAN NOT NULL DEFAULT false,
+            created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL
+        )
+        """
     )
 
-    op.create_table(
-        "previs_projects",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False, index=True),
-        sa.Column("template_id", sa.Integer(), sa.ForeignKey("previs_templates.id"), nullable=True, index=True),
-        sa.Column("title", sa.String(length=128), nullable=False, server_default="未命名白模项目"),
-        sa.Column("mode", sa.String(length=16), nullable=False, server_default="manual"),
-        sa.Column("scene_json", sa.JSON(), nullable=False),
-        sa.Column("camera_script", sa.JSON(), nullable=True),
-        sa.Column("mapping_rules", sa.JSON(), nullable=True),
-        sa.Column("previs_video_url", sa.String(length=512), nullable=True),
-        sa.Column("status", sa.String(length=32), nullable=False, server_default="draft"),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
+    op.execute(
+        """
+        CREATE TABLE IF NOT EXISTS previs_projects (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            template_id INTEGER REFERENCES previs_templates(id),
+            title VARCHAR(128) NOT NULL DEFAULT '未命名白模项目',
+            mode VARCHAR(16) NOT NULL DEFAULT 'manual',
+            scene_json JSON NOT NULL,
+            camera_script JSON,
+            mapping_rules JSON,
+            previs_video_url VARCHAR(512),
+            status VARCHAR(32) NOT NULL DEFAULT 'draft',
+            created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+            updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL
+        )
+        """
     )
 
     op.execute("ALTER TABLE video_tasks ADD COLUMN IF NOT EXISTS previs_video_url VARCHAR(512)")
@@ -58,5 +63,5 @@ def downgrade() -> None:
     op.execute("ALTER TABLE video_tasks DROP COLUMN IF EXISTS previs_scene_json")
     op.execute("ALTER TABLE video_tasks DROP COLUMN IF EXISTS previs_type")
     op.execute("ALTER TABLE video_tasks DROP COLUMN IF EXISTS previs_video_url")
-    op.drop_table("previs_projects")
-    op.drop_table("previs_templates")
+    op.execute("DROP TABLE IF EXISTS previs_projects")
+    op.execute("DROP TABLE IF EXISTS previs_templates")
