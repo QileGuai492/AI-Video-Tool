@@ -26,6 +26,7 @@ from app.providers.base import ImageGenerationRequest, LLMRequest, VideoGenerati
 from app.providers.registry import registry
 from app.services.audio_service import generate_tts_audio
 from app.services.media_download import download_and_store_video
+from app.services.previs_service import extract_keyframes
 from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
 from app.services.video_stitcher import StitchingError, stitch_videos
@@ -82,35 +83,45 @@ class SimpleTaskOrchestrator:
             )
             db.commit()
 
-            # 2. 生成首帧
+            # 2. 生成首帧 / 准备白模关键帧
             task.status = "generating_first_frame"
             db.commit()
 
             reference_image_urls = self._get_reference_image_urls(db, task.character_id)
-            image_provider = registry.get_image_provider()
-            image_result = image_provider.generate_image(
-                ImageGenerationRequest(
-                    prompt=task.optimized_prompt or task.prompt,
-                    reference_image_urls=reference_image_urls,
+            previs_frames: list[str] = []
+            first_frame_url: str | None = None
+
+            if task.previs_video_url:
+                # 白模降级：抽帧作为每段首帧，不再单独生成首帧
+                previs_frames = extract_keyframes(task.previs_video_url)
+                if not previs_frames:
+                    raise RuntimeError("白模视频未抽取到关键帧")
+                first_frame_url = previs_frames[0]
+            else:
+                image_provider = registry.get_image_provider()
+                image_result = image_provider.generate_image(
+                    ImageGenerationRequest(
+                        prompt=task.optimized_prompt or task.prompt,
+                        reference_image_urls=reference_image_urls,
+                    )
                 )
-            )
-            first_frame_url = image_result.image_url
-            self._write_generation_log(
-                db=db,
-                task_id=task.id,
-                user_id=task.user_id,
-                provider=image_result.provider,
-                call_type="image",
-                cost=image_result.cost,
-                status="success",
-            )
-            db.commit()
+                first_frame_url = image_result.image_url
+                self._write_generation_log(
+                    db=db,
+                    task_id=task.id,
+                    user_id=task.user_id,
+                    provider=image_result.provider,
+                    call_type="image",
+                    cost=image_result.cost,
+                    status="success",
+                )
+                db.commit()
 
             # 3. 生成视频片段（Mock 直接返回成功）
             task.status = "generating_video"
             db.commit()
 
-            segment_count = calculate_segment_count(task.duration or 60)
+            segment_count = len(previs_frames) if previs_frames else calculate_segment_count(task.duration or 60)
             video_provider = registry.get_video_provider()
             final_video_url: str | None = None
 
@@ -120,9 +131,10 @@ class SimpleTaskOrchestrator:
             segment_urls: list[str] = []
 
             for index in range(segment_count):
+                frame_url = previs_frames[index % len(previs_frames)] if previs_frames else first_frame_url
                 video_request = VideoGenerationRequest(
                     prompt=task.optimized_prompt or task.prompt,
-                    first_frame_url=first_frame_url,
+                    first_frame_url=frame_url,
                     reference_image_urls=reference_image_urls,
                     duration=5,
                     aspect_ratio=task.aspect_ratio or "16:9",

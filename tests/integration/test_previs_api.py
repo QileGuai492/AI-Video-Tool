@@ -1,5 +1,9 @@
 """白模预演接口集成测试。"""
 
+import shutil
+import time
+from pathlib import Path
+
 
 def test_previs_template_and_project_flow(client, auth_headers) -> None:
     """白模模板、项目、更新与渲染应可用。"""
@@ -76,3 +80,39 @@ def test_upload_previs_video(client, auth_headers) -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
     assert response.json()["previs_video_url"]
+
+
+def test_generate_task_with_previs_video(client, auth_headers) -> None:
+    """携带白模视频提交任务应能完成生成。"""
+    # 准备一个本地白模视频文件
+    video_dir = Path("uploads/videos")
+    video_dir.mkdir(parents=True, exist_ok=True)
+    source = Path("app/providers/assets/mock_clip.mp4")
+    target = video_dir / "previs_pipeline_test.mp4"
+    shutil.copyfile(source, target)
+
+    response = client.post(
+        "/api/v1/generate/video",
+        headers=auth_headers,
+        json={
+            "prompt": "白模降级测试",
+            "previs_video_url": "/uploads/videos/previs_pipeline_test.mp4",
+            "previs_type": "coarse",
+            "duration": 5,
+            "aspect_ratio": "16:9",
+            "quality": "standard",
+        },
+    )
+    assert response.status_code == 200
+    task_id = response.json()["id"]
+
+    status = None
+    for _ in range(20):
+        status = client.get(f"/api/v1/generate/status/{task_id}", headers=auth_headers)
+        if status.status_code == 200 and status.json()["status"] in {"completed", "failed", "cancelled"}:
+            break
+        time.sleep(0.5)
+
+    assert status is not None
+    assert status.json()["status"] == "completed"
+    assert status.json()["progress"] == 1.0

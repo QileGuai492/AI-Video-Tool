@@ -23,6 +23,7 @@ from app.providers.base import (
 from app.providers.registry import registry
 from app.services.audio_service import generate_tts_audio
 from app.services.media_download import download_and_store_video
+from app.services.previs_service import extract_keyframes
 from app.services.quality_service import evaluate_video
 from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
@@ -36,6 +37,7 @@ class GenerationState(TypedDict, total=False):
     task_id: int
     optimized_prompt: str | None
     first_frame_url: str | None
+    previs_frames: list[str]
     segment_urls: list[str]
     audio_url: str | None
     subtitle_url: str | None
@@ -169,6 +171,17 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
                 )
                 reference_image_urls.extend(view.image_url for view in multi_views)
 
+        if task.previs_video_url:
+            # 白模降级：抽帧作为每段首帧，不再单独生成首帧
+            previs_frames = extract_keyframes(task.previs_video_url)
+            if not previs_frames:
+                return {**state, "error": "白模视频未抽取到关键帧"}
+            return {
+                **state,
+                "first_frame_url": previs_frames[0],
+                "previs_frames": previs_frames,
+            }
+
         provider = registry.get_image_provider()
         result = provider.generate_image(
             ImageGenerationRequest(
@@ -184,7 +197,7 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
             cost=result.cost,
             status="success",
         )
-        return {**state, "first_frame_url": result.image_url}
+        return {**state, "first_frame_url": result.image_url, "previs_frames": []}
     finally:
         db.close()
 
@@ -199,16 +212,18 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
         if task is None:
             return {**state, "error": "任务不存在"}
 
-        segment_count = calculate_segment_count(task.duration or 60)
+        previs_frames = state.get("previs_frames", [])
+        segment_count = len(previs_frames) if previs_frames else calculate_segment_count(task.duration or 60)
         provider = registry.get_video_provider()
         segment_urls: list[str] = []
         mock_clip_path = Path("app/providers/assets/mock_clip.mp4")
         placeholder_content = mock_clip_path.read_bytes() if mock_clip_path.exists() else b"mock-video"
 
         for index in range(segment_count):
+            frame_url = previs_frames[index % len(previs_frames)] if previs_frames else state.get("first_frame_url")
             request = VideoGenerationRequest(
                 prompt=state.get("optimized_prompt") or task.prompt,
-                first_frame_url=state.get("first_frame_url"),
+                first_frame_url=frame_url,
                 duration=5,
                 aspect_ratio=task.aspect_ratio or "16:9",
                 model=task.resolution or "720p",
