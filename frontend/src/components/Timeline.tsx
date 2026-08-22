@@ -13,6 +13,7 @@ export default function Timeline() {
   const removeShotMarker = usePrevisStore((state) => state.removeShotMarker);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const keyframes = usePrevisStore((state) => state.keyframes);
+  const cameraKeyframes = usePrevisStore((state) => state.cameraKeyframes);
 
   const selectedKeyframes = selectedObjectId ? (keyframes[selectedObjectId] ?? []) : [];
 
@@ -33,6 +34,7 @@ export default function Timeline() {
             添加镜头切点
           </Button>
           {selectedObjectId && <Text>选中对象关键帧：{selectedKeyframes.length}</Text>}
+          <Text>相机关键帧：{cameraKeyframes.length}</Text>
         </Space>
         <Space wrap>
           <Text>镜头切点：</Text>

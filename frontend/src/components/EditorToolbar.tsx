@@ -1,4 +1,4 @@
-import { Button, Space, Typography } from "antd";
+import { Button, Space, Typography, message } from "antd";
 import { useRef } from "react";
 import { cameraRef } from "../previs/cameraRef";
 import { usePrevisStore } from "../previs/store";
@@ -15,6 +15,7 @@ export default function EditorToolbar({ onSave }: { onSave?: (scene: unknown) =>
   const duplicateObject = usePrevisStore((state) => state.duplicateObject);
   const addKeyframe = usePrevisStore((state) => state.addKeyframe);
   const addCameraKeyframe = usePrevisStore((state) => state.addCameraKeyframe);
+  const cameraKeyframes = usePrevisStore((state) => state.cameraKeyframes);
   const setIsPlaying = usePrevisStore((state) => state.setIsPlaying);
   const exportScene = usePrevisStore((state) => state.exportScene);
   const loadScene = usePrevisStore((state) => state.loadScene);
@@ -37,6 +38,11 @@ export default function EditorToolbar({ onSave }: { onSave?: (scene: unknown) =>
     a.download = "previs-scene.json";
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleAddCameraKeyframe = () => {
+    addCameraKeyframe(currentTime, cameraRef.position, cameraRef.target);
+    message.success(`已记录相机关键帧：${currentTime.toFixed(1)}s（共 ${cameraKeyframes.length + 1} 个）`);
   };
 
   const handleImport = (file: File) => {
@@ -73,9 +79,7 @@ export default function EditorToolbar({ onSave }: { onSave?: (scene: unknown) =>
       <Button danger disabled={!selectedObjectId} onClick={() => selectedObjectId && removeObject(selectedObjectId)}>
         删除
       </Button>
-      <Button onClick={() => addCameraKeyframe(currentTime, cameraRef.position, cameraRef.target)}>
-        记录相机
-      </Button>
+      <Button onClick={handleAddCameraKeyframe}>记录相机（{cameraKeyframes.length}）</Button>
       <Button onClick={() => setIsPlaying(!isPlaying)}>{isPlaying ? "暂停" : "播放"}</Button>
       <Button onClick={handleExport}>导出 JSON</Button>
       <Button onClick={() => fileInputRef.current?.click()}>导入 JSON</Button>
