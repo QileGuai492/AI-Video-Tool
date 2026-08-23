@@ -708,9 +708,6 @@ export default function Workbench() {
                   批量生成
                 </Button>
               </Space.Compact>
-              <Button block onClick={() => { window.location.href = "/tasks"; }}>
-                查看任务中心
-              </Button>
               <Button type="primary" block loading={submitting} onClick={handleSubmitGenerate}>
                 提交 AI 生成
               </Button>
