@@ -52,7 +52,7 @@
 
 - **阶段**：Sprint 1~4 核心能力已完成，Sprint 5 功能增强与生产部署加固进行中，白模升级 Phase 1 已启动。
 - **技术栈**：FastAPI + SQLAlchemy + Celery + Redis + LangGraph + React/Three.js + Agnes AI / SiliconFlow + Nginx。
-- **已支持**：真实视频生成（Agnes 已验证）、Edge TTS、BGM、字幕叠加、批量生成、模板市场、角色库、质量评估（启发式 + 可选 VLM）、Harness 评测、CI、白模预演 API、React 前端骨架、白模降级流水线、运镜预设、简单/高级模式。
+- **已支持**：真实视频生成（Agnes 已验证）、Edge TTS、BGM、字幕叠加、批量生成、模板市场、角色库、用户设置、质量评估（启发式 + 可选 VLM）、Harness 评测、CI、白模预演 API、React 前端骨架、白模降级流水线、运镜预设、简单/高级模式。
 - **下一步**：增强文字→白模生成质量、接入 Seedance/可灵等多模型、Blender 容器化渲染、生产服务器部署落地。
 
 ## Docker 快速启动
