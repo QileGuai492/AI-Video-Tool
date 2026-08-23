@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Empty, List, Space, Tabs, Tag, Typography, message } from "antd";
 import client from "../api/client";
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 interface TaskItem {
   id: number;
@@ -130,39 +130,45 @@ export default function Tasks() {
         ) : (
           <List
             loading={loading}
+            grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 2, xl: 3 }}
             dataSource={filteredTasks}
             renderItem={(task) => (
-              <List.Item
-                actions={[
-                  ["pending", "optimizing_prompt", "generating_first_frame", "generating_video", "generating_audio", "generating_subtitle", "post_processing", "quality_check"].includes(task.status) ? (
-                    <Button size="small" danger onClick={() => handleCancel(task.uid)}>
-                      取消
-                    </Button>
-                  ) : null,
-                  ["failed", "cancelled"].includes(task.status) ? (
-                    <Button size="small" onClick={() => handleRetry(task.uid)}>
-                      重试
-                    </Button>
-                  ) : null,
-                  task.video_url ? (
-                    <Button size="small" onClick={() => handleDownload(task.uid)}>
-                      下载
-                    </Button>
-                  ) : null,
-                ]}
-              >
-                <List.Item.Meta
-                  title={`任务 #${task.id}`}
-                  description={
-                    <Space direction="vertical">
-                      <Text>{task.prompt}</Text>
-                      <Text type="secondary">{new Date(task.created_at).toLocaleString()}</Text>
+              <List.Item>
+                <Card
+                  size="small"
+                  title={
+                    <Space>
+                      <Text strong>任务 #{task.id}</Text>
+                      <Tag color={statusColor[task.status] ?? "default"}>
+                        {statusText[task.status] ?? task.status}
+                      </Tag>
                     </Space>
                   }
-                />
-                <Tag color={statusColor[task.status] ?? "default"}>
-                  {statusText[task.status] ?? task.status}
-                </Tag>
+                  actions={[
+                    ["pending", "optimizing_prompt", "generating_first_frame", "generating_video", "generating_audio", "generating_subtitle", "post_processing", "quality_check"].includes(task.status) ? (
+                      <Button key="cancel" size="small" danger onClick={() => handleCancel(task.uid)}>
+                        取消
+                      </Button>
+                    ) : null,
+                    ["failed", "cancelled"].includes(task.status) ? (
+                      <Button key="retry" size="small" onClick={() => handleRetry(task.uid)}>
+                        重试
+                      </Button>
+                    ) : null,
+                    task.video_url ? (
+                      <Button key="download" size="small" onClick={() => handleDownload(task.uid)}>
+                        下载
+                      </Button>
+                    ) : null,
+                  ].filter(Boolean)}
+                >
+                  <Paragraph ellipsis={{ rows: 2 }} style={{ minHeight: 44, marginBottom: 8 }}>
+                    {task.prompt}
+                  </Paragraph>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {new Date(task.created_at).toLocaleString()}
+                  </Text>
+                </Card>
               </List.Item>
             )}
           />
