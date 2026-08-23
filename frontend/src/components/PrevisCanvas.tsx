@@ -324,9 +324,11 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
 
     try {
       const stream = renderer.domElement.captureStream(30);
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : "video/webm";
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+        ? "video/webm;codecs=vp8"
+        : MediaRecorder.isTypeSupported("video/webm")
+          ? "video/webm"
+          : "video/webm;codecs=vp9";
       const recorder = new MediaRecorder(stream, { mimeType });
       chunksRef.current = [];
       recorder.ondataavailable = (event) => {
@@ -336,6 +338,11 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
         const blob = new Blob(chunksRef.current, { type: mimeType });
         if (blob.size === 0) {
           message.error("录制失败：生成的视频为空");
+          setIsRecording(false);
+          return;
+        }
+        if (blob.size < 1024) {
+          message.error("录制内容为空或过短，请确认场景开始播放后再停止");
           setIsRecording(false);
           return;
         }
