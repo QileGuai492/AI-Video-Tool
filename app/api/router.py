@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.api.routes import (
     audio,
     auth,
+    bgm,
     characters,
     cost,
     generate,
@@ -24,6 +25,7 @@ api_router.include_router(history.router)
 api_router.include_router(templates.router)
 api_router.include_router(upload.router)
 api_router.include_router(audio.router)
+api_router.include_router(bgm.router)
 api_router.include_router(subtitle.router)
 api_router.include_router(cost.router)
 api_router.include_router(monitor.router)

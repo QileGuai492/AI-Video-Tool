@@ -1,10 +1,16 @@
 """音频服务。"""
 
+import io
+import math
+import struct
+import wave
+
 from sqlalchemy.orm import Session
 
 from app.models import AudioTrack, BgmLibrary
 from app.providers.base import TTSRequest
 from app.providers.registry import registry
+from app.storage import storage
 
 
 def generate_tts_audio(
@@ -31,6 +37,32 @@ def generate_tts_audio(
     return track
 
 
+def _generate_simple_bgm_wav() -> bytes:
+    """生成一段内置轻音乐 WAV（无外部依赖，可用于空曲库兜底）。"""
+    sample_rate = 22050
+    duration = 8.0
+    amplitude = 0.22
+    chords = [
+        [261.63, 329.63, 392.00],  # C
+        [220.00, 261.63, 329.63],  # Am
+        [174.61, 220.00, 261.63],  # F
+        [196.00, 246.94, 293.66],  # G
+    ]
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        total_frames = int(sample_rate * duration)
+        for i in range(total_frames):
+            t = i / sample_rate
+            chord = chords[int(t / 2.0) % len(chords)]
+            value = sum(math.sin(2.0 * math.pi * freq * t) for freq in chord) / len(chord)
+            sample = int(max(-1.0, min(1.0, value * amplitude)) * 32767)
+            wav.writeframes(struct.pack("<h", sample))
+    return buffer.getvalue()
+
+
 def generate_bgm_audio(
     db: Session,
     user_id: int,
@@ -44,7 +76,13 @@ def generate_bgm_audio(
     if bgm is None:
         bgm = db.query(BgmLibrary).first()
 
-    source_url = bgm.url if bgm is not None else "https://mock.local/audio/bgm.mp3"
+    if bgm is not None:
+        source_url = bgm.url
+    else:
+        content = _generate_simple_bgm_wav()
+        key = storage.upload(content=content, suffix="wav", folder="audio")
+        source_url = storage.get_url(key)
+
     track = AudioTrack(
         task_id=task_id,
         type="bgm",

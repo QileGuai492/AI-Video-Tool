@@ -31,6 +31,13 @@ def test_generate_bgm_audio(client, auth_headers) -> None:
     assert data["source_url"]
 
 
+def test_list_bgm_library(client, auth_headers) -> None:
+    """BGM 曲库接口应返回列表。"""
+    response = client.get("/api/v1/bgm", headers=auth_headers)
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
 def test_generate_subtitle(client, auth_headers) -> None:
     """字幕接口应返回 SRT 文件 URL 和内容。"""
     response = client.post(
