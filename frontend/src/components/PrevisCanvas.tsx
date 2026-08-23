@@ -377,9 +377,22 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
 
       // 用 0 帧率 + 手动 requestFrame()：Edge 对离屏 canvas 的自动 captureStream 可能不产出帧，
       // 手动模式能在每次 drawImage 后强制采集一帧，兼容性更好。
-      const stream = recordingCanvas.captureStream(0);
-      const videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
-      recordingTrackRef.current = videoTrack ?? null;
+      // 若浏览器不支持 requestFrame，则回退到自动 captureStream(30)。
+      let stream = recordingCanvas.captureStream(0);
+      let videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
+      if (!videoTrack || typeof videoTrack.requestFrame !== "function") {
+        stream.getTracks().forEach((track) => track.stop());
+        stream = recordingCanvas.captureStream(30);
+        videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
+      }
+      if (!videoTrack) {
+        message.error("无法从录制画布获取视频轨道");
+        recordingCanvasRef.current = null;
+        recordingCtxRef.current = null;
+        recordingTrackRef.current = null;
+        return;
+      }
+      recordingTrackRef.current = videoTrack;
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
         ? "video/webm;codecs=vp8"
         : MediaRecorder.isTypeSupported("video/webm")
