@@ -46,4 +46,36 @@ describe("Settings", () => {
 
     expect(mockedPut).toHaveBeenCalledWith("/settings", expect.any(Object));
   });
+
+  it("可以修改用户名并提交", async () => {
+    const user = userEvent.setup();
+    mockedGet.mockImplementation((url: string) => {
+      if (url === "/auth/me") {
+        return Promise.resolve({
+          data: {
+            id: 1,
+            uid: "user-uid",
+            username: "old_name",
+            email: "",
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
+    mockedPut.mockResolvedValue({});
+
+    render(<Settings />);
+    await waitFor(() => expect(mockedGet).toHaveBeenCalledWith("/auth/me"));
+
+    const usernameInput = screen.getByDisplayValue("old_name");
+    await user.clear(usernameInput);
+    await user.type(usernameInput, "new_name");
+    await user.click(screen.getByRole("button", { name: "保存用户信息" }));
+
+    expect(mockedPut).toHaveBeenCalledWith(
+      "/auth/me",
+      expect.objectContaining({ username: "new_name" })
+    );
+  });
 });

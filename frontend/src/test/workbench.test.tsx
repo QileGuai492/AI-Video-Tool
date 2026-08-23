@@ -147,6 +147,33 @@ describe("Workbench", () => {
     ).toBeInTheDocument();
   });
 
+  it("提交 AI 生成时携带字幕开关，且提供配音音色选项", async () => {
+    const user = userEvent.setup();
+    mockListData([project], []);
+    mockedPost.mockResolvedValue({ data: { id: 1, uid: "task-uid" } });
+
+    render(<Workbench />);
+
+    await screen.findByText("测试项目");
+    await user.click(screen.getByText("测试项目"));
+
+    const input = await screen.findByPlaceholderText("输入成片文案，例如：一只猫在夕阳下奔跑");
+    await user.type(input, "字幕开关测试");
+    expect(screen.getByText("配音音色")).toBeInTheDocument();
+    expect(screen.getByText("添加字幕")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch"));
+    await user.click(screen.getByRole("button", { name: /提\s*交\s*AI\s*生\s*成/ }));
+
+    expect(mockedPost).toHaveBeenCalledWith(
+      "/generate/video",
+      expect.objectContaining({
+        prompt: "字幕开关测试",
+        with_subtitle: false,
+      })
+    );
+  });
+
   it("保存项目会调用 PUT /previs/projects/{id}", async () => {
     const user = userEvent.setup();
     mockListData([project], []);

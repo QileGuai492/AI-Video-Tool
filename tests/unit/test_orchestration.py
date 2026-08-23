@@ -13,6 +13,14 @@ def test_orchestrator_factory_returns_simple() -> None:
     assert isinstance(get_orchestrator(), SimpleTaskOrchestrator)
 
 
+def test_infer_voice_by_prompt_keywords() -> None:
+    """应根据文案关键词推断默认配音音色。"""
+    orchestrator = SimpleTaskOrchestrator()
+    assert orchestrator._infer_voice("蜘蛛侠举起手接住蝴蝶") == "male_01"
+    assert orchestrator._infer_voice("她站在海边") == "female_01"
+    assert orchestrator._infer_voice("一个普通场景") == "female_01"
+
+
 def test_wait_for_real_video_returns_remote_url_when_download_fails(monkeypatch) -> None:
     """真实视频下载失败时，应回退到原始远程 URL。"""
     class FakeProvider:
