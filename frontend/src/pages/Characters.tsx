@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Col, Empty, Form, Input, Row, Space, Typography, message } from "antd";
+import { Button, Card, Col, Empty, Form, Input, Row, Space, Typography, Upload, message } from "antd";
 import client from "../api/client";
 
 const { Title, Text } = Typography;
@@ -19,6 +19,8 @@ export default function Characters() {
   const [multiViewSubmitting, setMultiViewSubmitting] = useState<number | null>(null);
   const [createForm] = Form.useForm();
   const [multiViewForm] = Form.useForm();
+  const [uploadingCreateImage, setUploadingCreateImage] = useState(false);
+  const [uploadingMultiViewImage, setUploadingMultiViewImage] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,6 +37,19 @@ export default function Characters() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const uploadImage = async (file: File, onSuccess: (url: string) => void) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("file_type", "image");
+      const response = await client.post("/upload", formData);
+      onSuccess(response.data.file_url);
+      message.success("图片已上传");
+    } catch {
+      message.error("图片上传失败");
+    }
+  };
 
   const handleCreate = async (values: { name: string; reference_image_url?: string; description?: string }) => {
     setCreating(true);
@@ -87,7 +102,23 @@ export default function Characters() {
             <Input placeholder="角色名称" />
           </Form.Item>
           <Form.Item name="reference_image_url">
-            <Input placeholder="参考图 URL（可留空）" style={{ width: 280 }} />
+            <Space.Compact style={{ width: "100%" }}>
+              <Input placeholder="参考图 URL（可留空）" style={{ width: 220 }} />
+              <Upload
+                accept="image/*"
+                showUploadList={false}
+                beforeUpload={(file) => {
+                  setUploadingCreateImage(true);
+                  uploadImage(file as File, (url) => {
+                    createForm.setFieldValue("reference_image_url", url);
+                    setUploadingCreateImage(false);
+                  }).finally(() => setUploadingCreateImage(false));
+                  return false;
+                }}
+              >
+                <Button loading={uploadingCreateImage}>上传图片</Button>
+              </Upload>
+            </Space.Compact>
           </Form.Item>
           <Form.Item name="description">
             <Input placeholder="描述（可选）" style={{ width: 200 }} />
@@ -144,7 +175,23 @@ export default function Characters() {
                       <Input placeholder="视角名，如正面" />
                     </Form.Item>
                     <Form.Item name="image_url" rules={[{ required: true, message: "图片 URL" }]} style={{ marginBottom: 0 }}>
-                      <Input placeholder="图片 URL" />
+                      <Space.Compact style={{ width: "100%" }}>
+                        <Input placeholder="图片 URL" />
+                        <Upload
+                          accept="image/*"
+                          showUploadList={false}
+                          beforeUpload={(file) => {
+                            setUploadingMultiViewImage(true);
+                            uploadImage(file as File, (url) => {
+                              multiViewForm.setFieldValue("image_url", url);
+                              setUploadingMultiViewImage(false);
+                            }).finally(() => setUploadingMultiViewImage(false));
+                            return false;
+                          }}
+                        >
+                          <Button loading={uploadingMultiViewImage}>上传</Button>
+                        </Upload>
+                      </Space.Compact>
                     </Form.Item>
                     <Button htmlType="submit" loading={multiViewSubmitting === character.id}>
                       添加视角
