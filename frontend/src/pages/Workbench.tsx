@@ -189,7 +189,10 @@ export default function Workbench() {
       message.success("白模视频已上传并转 MP4");
     } catch (error) {
       console.error("白模视频上传失败", error);
-      message.error("白模视频上传失败，请检查后端与 PUBLIC_BASE_URL 配置");
+      const detail =
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "请检查后端与 PUBLIC_BASE_URL 配置";
+      message.error(`白模视频上传失败：${detail}`);
     }
   };
 
