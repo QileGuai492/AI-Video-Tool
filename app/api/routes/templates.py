@@ -90,3 +90,22 @@ def get_template(
     if template is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="模板不存在")
     return template
+
+
+@router.delete("/{template_id}")
+def delete_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """删除当前用户自己的模板（内置模板不可删除）。"""
+    template = (
+        db.query(Template)
+        .filter(Template.id == template_id, Template.user_id == current_user.id)
+        .first()
+    )
+    if template is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="模板不存在或不可删除")
+    db.delete(template)
+    db.commit()
+    return {"ok": True}

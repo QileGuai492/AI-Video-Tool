@@ -62,6 +62,25 @@ def create_previs_template(
     return template
 
 
+@router.delete("/templates/{template_id}")
+def delete_previs_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """删除自定义白模模板（内置模板不可删除）。"""
+    template = (
+        db.query(PrevisTemplate)
+        .filter(PrevisTemplate.id == template_id, PrevisTemplate.user_id == current_user.id)
+        .first()
+    )
+    if template is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="模板不存在或不可删除")
+    db.delete(template)
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/projects", response_model=PrevisProjectRead)
 def create_previs_project(
     payload: PrevisProjectCreate,
@@ -152,6 +171,19 @@ def get_previs_project(
     """获取白模项目详情。"""
     project = _get_owned_project(db, project_id, current_user.id)
     return project
+
+
+@router.delete("/projects/{project_id}")
+def delete_previs_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """删除白模项目。"""
+    project = _get_owned_project(db, project_id, current_user.id)
+    db.delete(project)
+    db.commit()
+    return {"ok": True}
 
 
 @router.put("/projects/{project_id}", response_model=PrevisProjectRead)

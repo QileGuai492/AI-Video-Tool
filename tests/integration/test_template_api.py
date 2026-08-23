@@ -40,3 +40,16 @@ def test_template_get_builtin_visible(client, auth_headers, db_session) -> None:
     response = client.get(f"/api/v1/templates/{builtin.id}", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["name"] == "官方模板"
+
+
+def test_delete_own_template(client, auth_headers) -> None:
+    """用户应能删除自己的模板，内置模板不可删除。"""
+    create = client.post(
+        "/api/v1/templates",
+        headers=auth_headers,
+        json={"name": "待删除模板", "config_json": {"prompt": "x"}},
+    )
+    template_id = create.json()["id"]
+    delete = client.delete(f"/api/v1/templates/{template_id}", headers=auth_headers)
+    assert delete.status_code == 200
+    assert client.get(f"/api/v1/templates/{template_id}", headers=auth_headers).status_code == 404

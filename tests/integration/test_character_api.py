@@ -54,3 +54,16 @@ def test_character_detail_not_owned(client, auth_headers) -> None:
         headers=other_headers,
     )
     assert detail_response.status_code == 404
+
+
+def test_delete_character(client, auth_headers) -> None:
+    """用户应能删除自己的角色。"""
+    create_response = client.post(
+        "/api/v1/characters",
+        headers=auth_headers,
+        json={"name": "待删除角色", "reference_image_url": "https://example.com/a.png"},
+    )
+    character_id = create_response.json()["id"]
+    delete_response = client.delete(f"/api/v1/characters/{character_id}", headers=auth_headers)
+    assert delete_response.status_code == 200
+    assert client.get(f"/api/v1/characters/{character_id}", headers=auth_headers).status_code == 404

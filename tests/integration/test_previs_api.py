@@ -144,3 +144,25 @@ def test_generate_task_with_previs_video(client, auth_headers) -> None:
     assert status is not None
     assert status.json()["status"] == "completed"
     assert status.json()["progress"] == 1.0
+
+
+def test_delete_previs_project_and_template(client, auth_headers) -> None:
+    """白模项目与自定义模板应支持删除。"""
+    project = client.post(
+        "/api/v1/previs/projects",
+        headers=auth_headers,
+        json={"title": "待删除项目", "mode": "manual", "scene_json": {}},
+    )
+    project_id = project.json()["id"]
+    delete_project = client.delete(f"/api/v1/previs/projects/{project_id}", headers=auth_headers)
+    assert delete_project.status_code == 200
+    assert client.get(f"/api/v1/previs/projects/{project_id}", headers=auth_headers).status_code == 404
+
+    template = client.post(
+        "/api/v1/previs/templates",
+        headers=auth_headers,
+        json={"name": "待删除模板", "scene_json": {"objects": []}},
+    )
+    template_id = template.json()["id"]
+    delete_template = client.delete(f"/api/v1/previs/templates/{template_id}", headers=auth_headers)
+    assert delete_template.status_code == 200

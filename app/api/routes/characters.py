@@ -84,3 +84,16 @@ def add_character_multi_view(
     db.commit()
     db.refresh(multi_view)
     return multi_view
+
+
+@router.delete("/{character_id}")
+def delete_character(
+    character_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """删除角色。"""
+    character = _get_owned_character(db, character_id, current_user.id)
+    db.delete(character)
+    db.commit()
+    return {"ok": True}
