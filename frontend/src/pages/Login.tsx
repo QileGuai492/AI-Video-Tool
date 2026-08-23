@@ -87,7 +87,11 @@ export default function Login() {
                   >
                     <Input.Password />
                   </Form.Item>
-                  <Form.Item name="email" label="邮箱（选填）">
+                  <Form.Item
+                    name="email"
+                    label="邮箱（选填）"
+                    rules={[{ type: "email", message: "请输入正确的邮箱格式" }]}
+                  >
                     <Input />
                   </Form.Item>
                   <Button type="primary" htmlType="submit" block>

@@ -39,6 +39,15 @@ def test_register_weak_password_rejected(client) -> None:
         assert response.status_code == 422
 
 
+def test_register_invalid_email_rejected(client) -> None:
+    """注册时邮箱格式不正确应被拒绝。"""
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"username": "bad_email", "password": "abc12345", "email": "用户名"},
+    )
+    assert response.status_code == 422
+
+
 def test_update_weak_password_rejected(client, auth_headers) -> None:
     """修改密码时弱密码应被拒绝。"""
     response = client.put(

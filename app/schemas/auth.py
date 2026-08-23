@@ -19,6 +19,15 @@ def _validate_password_strength(value: str | None) -> str | None:
     return value
 
 
+def _validate_email(value: str | None) -> str | None:
+    """校验邮箱格式；为空或 None 时允许。"""
+    if value is None or value == "":
+        return value
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", value):
+        raise ValueError("邮箱格式不正确")
+    return value
+
+
 class UserRead(BaseModel):
     """当前用户信息。"""
 
@@ -42,6 +51,12 @@ class UserUpdate(BaseModel):
         """密码可选，但填写时必须满足强度要求。"""
         return _validate_password_strength(value)
 
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        """邮箱可选，但填写时必须格式正确。"""
+        return _validate_email(value)
+
 
 class RegisterRequest(BaseModel):
     """注册请求。"""
@@ -55,6 +70,12 @@ class RegisterRequest(BaseModel):
     def validate_password(cls, value: str) -> str:
         """注册密码必须满足强度要求。"""
         return _validate_password_strength(value)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        """邮箱可选，但填写时必须格式正确。"""
+        return _validate_email(value)
 
 
 class LoginRequest(BaseModel):

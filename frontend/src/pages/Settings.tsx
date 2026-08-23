@@ -80,7 +80,11 @@ export default function Settings() {
           <Form.Item name="username" label="用户名">
             <Input disabled />
           </Form.Item>
-          <Form.Item name="email" label="邮箱">
+          <Form.Item
+            name="email"
+            label="邮箱"
+            rules={[{ type: "email", message: "请输入正确的邮箱格式" }]}
+          >
             <Input placeholder="请输入邮箱" />
           </Form.Item>
           <Form.Item
