@@ -15,6 +15,7 @@ import {
   message,
 } from "antd";
 import client from "../api/client";
+import { useAuthStore } from "../stores/authStore";
 
 const { Title, Text } = Typography;
 
@@ -83,11 +84,16 @@ export default function Settings() {
   const handleSaveUser = async (values: { username: string; email?: string; password?: string }) => {
     setUserSaving(true);
     try {
-      const payload: { email?: string; password?: string } = {};
+      const payload: { username?: string; email?: string; password?: string } = {};
+      if (values.username !== undefined) payload.username = values.username;
       if (values.email !== undefined) payload.email = values.email;
       if (values.password) payload.password = values.password;
       await client.put("/auth/me", payload);
       message.success("用户信息已保存");
+      if (values.username) {
+        localStorage.setItem("username", values.username);
+        useAuthStore.setState({ username: values.username });
+      }
       userForm.setFieldsValue({ password: "" });
     } catch {
       message.error("保存用户信息失败");
@@ -121,8 +127,8 @@ export default function Settings() {
               </Space>
             </Space>
             <Form form={userForm} layout="vertical" onFinish={handleSaveUser}>
-              <Form.Item name="username" label="用户名">
-                <Input disabled />
+              <Form.Item name="username" label="用户名" rules={[{ required: true, min: 2, max: 64 }]}>
+                <Input />
               </Form.Item>
               <Form.Item
                 name="email"

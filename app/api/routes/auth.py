@@ -64,7 +64,12 @@ def update_current_user_info(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> User:
-    """更新当前用户邮箱或密码。"""
+    """更新当前用户名、邮箱或密码。"""
+    if payload.username is not None and payload.username != current_user.username:
+        exists = db.query(User).filter(User.username == payload.username).first()
+        if exists is not None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="用户名已存在")
+        current_user.username = payload.username
     if payload.email is not None:
         current_user.email = payload.email
     if payload.password:

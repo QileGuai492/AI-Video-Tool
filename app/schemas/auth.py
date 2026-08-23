@@ -43,6 +43,7 @@ class UserRead(BaseModel):
 class UserUpdate(BaseModel):
     """更新当前用户信息。"""
 
+    username: str | None = Field(default=None, min_length=2, max_length=64)
     email: str | None = None
     password: str | None = Field(default=None, max_length=128)
 

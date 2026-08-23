@@ -58,6 +58,28 @@ def test_update_weak_password_rejected(client, auth_headers) -> None:
     assert response.status_code == 422
 
 
+def test_update_username(client, auth_headers) -> None:
+    """当前用户可修改用户名，且不能与已有用户重复。"""
+    response = client.put(
+        "/api/v1/auth/me",
+        headers=auth_headers,
+        json={"username": "new_name"},
+    )
+    assert response.status_code == 200
+    assert response.json()["username"] == "new_name"
+
+    client.post(
+        "/api/v1/auth/register",
+        json={"username": "taken_name", "password": "secret123"},
+    )
+    duplicate = client.put(
+        "/api/v1/auth/me",
+        headers=auth_headers,
+        json={"username": "taken_name"},
+    )
+    assert duplicate.status_code == 400
+
+
 def test_login_wrong_password(client) -> None:
     """错误密码登录应返回 401。"""
     client.post(
