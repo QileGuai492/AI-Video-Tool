@@ -58,6 +58,8 @@ def convert_webm_to_mp4(source: Path, output: Path) -> Path:
         "100M",
         "-i",
         str(source),
+        "-vf",
+        "scale=trunc(iw/2)*2:trunc(ih/2)*2",
         "-c:v",
         "libx264",
         "-pix_fmt",

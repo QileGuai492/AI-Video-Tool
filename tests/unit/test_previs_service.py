@@ -14,6 +14,7 @@ from app.services.previs_service import (
     _parse_scene_json,
     build_segment_prompt,
     build_shot_prompt,
+    convert_webm_to_mp4,
     generate_previs_scene_from_text,
     normalize_previs_scene,
     seed_builtin_previs_templates,
@@ -121,3 +122,28 @@ def test_seed_builtin_previs_templates_idempotent() -> None:
     with Session(engine) as db:
         count = db.query(PrevisTemplate).filter(PrevisTemplate.is_builtin.is_(True)).count()
     assert count == len(BUILTIN_PREVIS_TEMPLATES)
+
+
+def test_convert_webm_to_mp4_scales_even_dimensions(monkeypatch, local_tmp_path) -> None:
+    """WebM 转 MP4 应把奇数宽高缩放到偶数，避免 libx264 拒绝编码。"""
+    source = local_tmp_path / "input.webm"
+    source.write_bytes(b"fake-webm")
+    output = local_tmp_path / "output.mp4"
+    captured: dict[str, list[str]] = {}
+
+    class FakeResult:
+        returncode = 0
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return FakeResult()
+
+    monkeypatch.setattr("app.services.previs_service._get_ffmpeg", lambda: "ffmpeg")
+    monkeypatch.setattr("app.services.previs_service.subprocess.run", fake_run)
+
+    convert_webm_to_mp4(source, output)
+
+    command = captured["command"]
+    assert "-vf" in command
+    assert "scale=trunc(iw/2)*2:trunc(ih/2)*2" in command
