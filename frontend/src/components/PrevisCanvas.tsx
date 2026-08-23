@@ -165,6 +165,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
         if (next >= usePrevisStore.getState().duration) {
           usePrevisStore.getState().setIsPlaying(false);
           usePrevisStore.getState().setCurrentTime(usePrevisStore.getState().duration);
+          renderer.render(scene, camera);
           if (recorderRef.current && recorderRef.current.state === "recording") {
             recorderRef.current.stop();
           }
@@ -355,11 +356,13 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
         onRecorded?.(blob);
         setIsRecording(false);
       };
+      // 重置时钟，避免暂停较久后首个 delta 过大导致立即停止、录不到帧
+      clockRef.current = new THREE.Clock();
+      usePrevisStore.getState().setCurrentTime(0);
+      usePrevisStore.getState().setIsPlaying(true);
       recorder.start();
       recorderRef.current = recorder;
       setIsRecording(true);
-      usePrevisStore.getState().setCurrentTime(0);
-      usePrevisStore.getState().setIsPlaying(true);
     } catch (error) {
       console.error("白模录制失败", error);
       message.error("白模视频录制失败，请查看浏览器控制台");
