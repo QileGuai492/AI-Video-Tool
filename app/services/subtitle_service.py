@@ -7,7 +7,7 @@ from app.storage import storage
 
 def _split_text(text: str, max_chars: int = 20) -> list[str]:
     """按标点将长文本拆成适合单条字幕的片段。"""
-    parts = [part.strip() for part in re.split(r"(?<=[。！？；，])", text) if part.strip()]
+    parts = [part.strip() for part in re.split(r"(?<=[。！？；])", text) if part.strip()]
     if len(parts) > 1:
         return parts
     if len(text) <= max_chars:
