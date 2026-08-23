@@ -372,6 +372,12 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
         return;
       }
       recordingCtx.drawImage(renderer.domElement, 0, 0);
+      // 挂到屏幕外 DOM，规避 Edge 对完全离屏 canvas 不采集帧的问题
+      recordingCanvas.style.position = "fixed";
+      recordingCanvas.style.left = "-99999px";
+      recordingCanvas.style.top = "0";
+      recordingCanvas.style.pointerEvents = "none";
+      document.body.appendChild(recordingCanvas);
       recordingCanvasRef.current = recordingCanvas;
       recordingCtxRef.current = recordingCtx;
 
@@ -387,6 +393,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       }
       if (!videoTrack) {
         message.error("无法从录制画布获取视频轨道");
+        recordingCanvas.remove();
         recordingCanvasRef.current = null;
         recordingCtxRef.current = null;
         recordingTrackRef.current = null;
@@ -404,6 +411,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onstop = async () => {
+        recordingCanvas.remove();
         recordingCanvasRef.current = null;
         recordingCtxRef.current = null;
         recordingTrackRef.current = null;
@@ -450,6 +458,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       setIsRecording(true);
     } catch (error) {
       console.error("白模录制失败", error);
+      recordingCanvasRef.current?.remove();
       recordingCanvasRef.current = null;
       recordingCtxRef.current = null;
       recordingTrackRef.current = null;
