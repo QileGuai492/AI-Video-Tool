@@ -31,6 +31,7 @@ from app.models import (  # noqa: F401  确保模型注册到 Base.metadata
     VideoTask,
 )
 from app.services.previs_service import seed_builtin_previs_templates
+from app.services.template_seed import seed_builtin_prompt_templates
 
 settings = get_settings()
 
@@ -42,6 +43,7 @@ async def lifespan(app: FastAPI):
     if settings.auto_create_tables:
         Base.metadata.create_all(bind=engine)
         seed_builtin_previs_templates(engine)
+        seed_builtin_prompt_templates(engine)
     yield
 
 
