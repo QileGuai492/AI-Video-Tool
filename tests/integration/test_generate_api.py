@@ -175,6 +175,31 @@ def test_task_uid_cross_user_isolated(client, auth_headers, db_session) -> None:
     assert cancel_response.status_code == 404
 
 
+def test_submit_task_with_character_mappings(client, auth_headers, db_session) -> None:
+    """提交任务时应保存多角色映射。"""
+    response = client.post(
+        "/api/v1/generate/video",
+        headers=auth_headers,
+        json={
+            "prompt": "多角色测试",
+            "character_mappings": [
+                {"object_id": "obj_1", "character_id": 1},
+                {"object_id": "obj_2", "character_id": 2},
+            ],
+            "duration": 5,
+            "aspect_ratio": "16:9",
+            "quality": "standard",
+        },
+    )
+    assert response.status_code == 200
+    task = db_session.query(VideoTask).filter(VideoTask.id == response.json()["id"]).first()
+    assert task is not None
+    assert task.character_mappings == [
+        {"object_id": "obj_1", "character_id": 1},
+        {"object_id": "obj_2", "character_id": 2},
+    ]
+
+
 def test_submit_task_with_voice_and_subtitle(client, auth_headers, db_session) -> None:
     """提交任务时应保存配音音色与字幕开关。"""
     response = client.post(

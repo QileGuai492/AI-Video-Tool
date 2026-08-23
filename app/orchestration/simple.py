@@ -111,6 +111,22 @@ class SimpleTaskOrchestrator:
             reference_image_urls = list(task.reference_image_urls or []) + self._get_reference_image_urls(
                 db, task.character_id
             )
+            mapping_rules: dict[str, str] = {}
+            if task.character_mappings:
+                for mapping in task.character_mappings:
+                    object_id = mapping.get("object_id")
+                    character_id = mapping.get("character_id")
+                    if not object_id or not character_id:
+                        continue
+                    character = (
+                        db.query(Character)
+                        .filter(Character.id == character_id, Character.user_id == task.user_id)
+                        .first()
+                    )
+                    if character is None:
+                        continue
+                    reference_image_urls.append(character.reference_image_url)
+                    mapping_rules[str(object_id)] = f"@图片{len(reference_image_urls)}的{character.name}"
             previs_frames: list[str] = []
             first_frame_url: str | None = None
 
@@ -183,7 +199,11 @@ class SimpleTaskOrchestrator:
             def generate_segment(index: int) -> tuple[int, str, str]:
                 frame_url = first_frame_url
                 shot = camera_shots[index] if index < len(camera_shots) else None
-                segment_prompt = build_segment_prompt(task.optimized_prompt or task.prompt, shot)
+                segment_prompt = build_segment_prompt(
+                    task.optimized_prompt or task.prompt,
+                    shot,
+                    mapping_rules=mapping_rules,
+                )
                 video_request = VideoGenerationRequest(
                     prompt=segment_prompt,
                     first_frame_url=frame_url,

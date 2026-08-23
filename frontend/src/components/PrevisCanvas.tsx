@@ -3,6 +3,7 @@ import { message } from "antd";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
+import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { cameraRef } from "../previs/cameraRef";
 import { usePrevisStore } from "../previs/store";
 import type { ObjectType, Vec3 } from "../previs/types";
@@ -103,7 +104,13 @@ function interpolateTransform(
   return null;
 }
 
-export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob) => void }) {
+export default function PrevisCanvas({
+  onRecorded,
+  characterLabels = {},
+}: {
+  onRecorded?: (blob: Blob) => void;
+  characterLabels?: Record<string, string>;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraObjectRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -116,6 +123,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
   const chunksRef = useRef<Blob[]>([]);
   const recordingTrackRef = useRef<CanvasCaptureMediaStreamTrack | null>(null);
   const cameraPathLineRef = useRef<THREE.Line | null>(null);
+  const labelRendererRef = useRef<CSS2DRenderer | null>(null);
   const [isRecording, setIsRecording] = useState(false);
 
   const objects = usePrevisStore((state) => state.objects);
@@ -147,6 +155,15 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
     renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
     containerRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
+
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+    labelRenderer.domElement.style.position = "absolute";
+    labelRenderer.domElement.style.top = "0";
+    labelRenderer.domElement.style.left = "0";
+    labelRenderer.domElement.style.pointerEvents = "none";
+    containerRef.current.appendChild(labelRenderer.domElement);
+    labelRendererRef.current = labelRenderer;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -207,6 +224,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       cameraRef.position = [camera.position.x, camera.position.y, camera.position.z];
       cameraRef.target = [controls.target.x, controls.target.y, controls.target.z];
       renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
       // 直接采集可见 WebGL 画布；手动请求采集帧，兼容 Edge 对 canvas 变更不敏感的问题
       recordingTrackRef.current?.requestFrame();
     };
@@ -219,6 +237,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
+      labelRenderer.setSize(width, height);
     };
     window.addEventListener("resize", handleResize);
 
@@ -230,7 +249,11 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       renderer.dispose();
       if (containerRef.current) {
         containerRef.current.removeChild(renderer.domElement);
+        if (labelRenderer.domElement.parentNode === containerRef.current) {
+          containerRef.current.removeChild(labelRenderer.domElement);
+        }
       }
+      labelRendererRef.current = null;
       meshMapRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -264,6 +287,33 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectSignature]);
+
+  // 角色映射标签
+  useEffect(() => {
+    for (const [objectId, mesh] of meshMapRef.current.entries()) {
+      const existing = mesh.getObjectByName("character-label");
+      if (existing) {
+        mesh.remove(existing);
+      }
+      const label = characterLabels[objectId];
+      if (!label) continue;
+      const div = document.createElement("div");
+      div.textContent = label;
+      div.style.color = "#fff";
+      div.style.background = "rgba(22,119,255,0.85)";
+      div.style.padding = "2px 10px";
+      div.style.borderRadius = "12px";
+      div.style.fontSize = "12px";
+      div.style.fontWeight = "600";
+      div.style.whiteSpace = "nowrap";
+      div.style.boxShadow = "0 1px 4px rgba(0,0,0,0.4)";
+      const labelObject = new CSS2DObject(div);
+      labelObject.name = "character-label";
+      labelObject.position.set(0, 2.2, 0);
+      mesh.add(labelObject);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [characterLabels, objectSignature]);
 
   // 选择对象时绑定 TransformControls
   useEffect(() => {

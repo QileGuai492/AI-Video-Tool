@@ -82,6 +82,7 @@ class VideoTask(Base):
     character_id: Mapped[int | None] = mapped_column(ForeignKey("characters.id"), nullable=True, index=True)
     image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     reference_image_urls: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    character_mappings: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     voice_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     with_subtitle: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)

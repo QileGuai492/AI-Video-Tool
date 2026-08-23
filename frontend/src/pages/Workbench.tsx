@@ -57,6 +57,7 @@ export default function Workbench() {
   const [withSubtitle, setWithSubtitle] = useState(true);
   const [characters, setCharacters] = useState<{ id: number; name: string }[]>([]);
   const [characterId, setCharacterId] = useState<number | undefined>(undefined);
+  const [characterMappings, setCharacterMappings] = useState<Record<string, number | undefined>>({});
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const shotMarkers = usePrevisStore((state) => state.shotMarkers);
@@ -279,6 +280,7 @@ export default function Workbench() {
         aspect_ratio: "16:9",
         quality: "standard",
         character_id: characterId ?? null,
+        character_mappings: characterMappingsPayload.length > 0 ? characterMappingsPayload : null,
         voice_id: voiceId,
         with_subtitle: withSubtitle,
       });
@@ -313,6 +315,7 @@ export default function Workbench() {
         aspect_ratio: "16:9",
         quality: "standard",
         character_id: characterId ?? null,
+        character_mappings: characterMappingsPayload.length > 0 ? characterMappingsPayload : null,
         voice_id: voiceId,
         with_subtitle: withSubtitle,
       });
@@ -401,6 +404,19 @@ export default function Workbench() {
   const shotStarts = [0, ...shotMarkers.filter((marker) => marker > 0 && marker < duration), duration].sort(
     (a, b) => a - b
   );
+
+  const humanoidObjects = objects.filter((obj) => obj.type === "humanoid");
+  const characterLabels: Record<string, string> = {};
+  for (const [objectId, selectedCharacterId] of Object.entries(characterMappings)) {
+    const character = characters.find((item) => item.id === selectedCharacterId);
+    if (character) characterLabels[objectId] = character.name;
+  }
+  const characterMappingsPayload = Object.entries(characterMappings)
+    .filter(([, selectedCharacterId]) => selectedCharacterId != null)
+    .map(([objectId, selectedCharacterId]) => ({
+      object_id: objectId,
+      character_id: selectedCharacterId,
+    }));
 
   return (
     <div>
@@ -542,7 +558,7 @@ export default function Workbench() {
                 <ObjectProperties />
               </Col>
             </Row>
-            <PrevisCanvas onRecorded={handleRecorded} />
+            <PrevisCanvas onRecorded={handleRecorded} characterLabels={characterLabels} />
             <Timeline />
             <div style={{ marginTop: 12 }}>
               <KeyframeList />
@@ -625,6 +641,32 @@ export default function Workbench() {
                 </Button>
               </Upload>
             </Space>
+            {humanoidObjects.length > 0 ? (
+              <>
+                <Divider style={{ margin: "16px 0" }} />
+                <Text strong>角色映射</Text>
+                <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>
+                  {humanoidObjects.map((obj) => (
+                    <Space key={obj.id} style={{ width: "100%", justifyContent: "space-between" }}>
+                      <Text style={{ flex: 1 }}>{obj.name}</Text>
+                      <Select
+                        allowClear
+                        placeholder="选择角色"
+                        style={{ width: 150 }}
+                        value={characterMappings[obj.id]}
+                        onChange={(value) =>
+                          setCharacterMappings((prev) => ({ ...prev, [obj.id]: value }))
+                        }
+                        options={characters.map((character) => ({
+                          value: character.id,
+                          label: character.name,
+                        }))}
+                      />
+                    </Space>
+                  ))}
+                </Space>
+              </>
+            ) : null}
             <Divider style={{ margin: "16px 0" }} />
             <Text strong>生成操作</Text>
             <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>

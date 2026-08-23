@@ -61,6 +61,7 @@ def submit_batch_tasks(
             prompt=payload.prompt,
             image_url=payload.image_url,
             reference_image_urls=payload.reference_image_urls,
+            character_mappings=payload.character_mappings,
             voice_id=payload.voice_id,
             with_subtitle=payload.with_subtitle,
             duration=payload.duration,

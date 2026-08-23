@@ -277,11 +277,27 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                     .all()
                 )
                 reference_image_urls.extend(view.image_url for view in multi_views)
+        mapping_rules: dict[str, str] = {}
+        if task.character_mappings:
+            for mapping in task.character_mappings:
+                object_id = mapping.get("object_id")
+                character_id = mapping.get("character_id")
+                if not object_id or not character_id:
+                    continue
+                character = db.query(Character).filter(Character.id == character_id).first()
+                if character is None:
+                    continue
+                reference_image_urls.append(character.reference_image_url)
+                mapping_rules[str(object_id)] = f"@图片{len(reference_image_urls)}的{character.name}"
 
         def generate_segment(index: int) -> tuple[int, str, str]:
             frame_url = state.get("first_frame_url")
             shot = camera_shots[index] if index < len(camera_shots) else None
-            segment_prompt = build_segment_prompt(state.get("optimized_prompt") or task.prompt, shot)
+            segment_prompt = build_segment_prompt(
+                state.get("optimized_prompt") or task.prompt,
+                shot,
+                mapping_rules=mapping_rules,
+            )
             request = VideoGenerationRequest(
                 prompt=segment_prompt,
                 first_frame_url=frame_url,
