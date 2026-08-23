@@ -159,6 +159,7 @@ app/providers/
 ├── registry.py        # Provider 注册与选择
 ├── mock.py            # Mock 实现
 ├── agnes.py           # Agnes AI（LLM / 文生图 / 视频生成）
+├── edge_tts.py        # Edge TTS（免费 TTS）
 ├── siliconflow.py     # SiliconFlow（LLM / 文生图 / 视频生成 / TTS）
 ├── minimax.py         # MiniMax（视频生成）
 ├── tongyi.py          # 通义万相（文生图）
@@ -169,8 +170,9 @@ app/providers/
 当前：
 
 - **Agnes AI** 已接入 LLM、文生图、视频生成，并完成真实白模端到端验证。
-- **SiliconFlow** 已接入 LLM、文生图、视频生成与 TTS。
-- Provider 选择优先级：配置了 `AGNES_API_KEY` 时优先使用 Agnes，否则使用 SiliconFlow，最后回退 Mock。
+- **Edge TTS** 已接入免费 TTS，作为默认真实 TTS Provider。
+- **SiliconFlow** 已接入 LLM、文生图、视频生成与 TTS（TTS 当前 402，已由 Edge TTS 替代）。
+- Provider 选择优先级：配置了 `AGNES_API_KEY` 时优先使用 Agnes；TTS 默认使用 Edge TTS，其次 SiliconFlow，最后回退 Mock。
 
 ## 8. 注意事项
 

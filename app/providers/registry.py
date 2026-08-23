@@ -46,6 +46,11 @@ class ProviderRegistry:
             self.image_providers["agnes"] = AgnesImageProvider()
             self.video_providers["agnes"] = AgnesVideoProvider()
 
+        # Edge TTS 免费可用，无需 Key，作为默认真实 TTS Provider
+        from app.providers.edge_tts import EdgeTTSProvider
+
+        self.tts_providers["edge_tts"] = EdgeTTSProvider()
+
         if settings.siliconflow_api_key:
             from app.providers.siliconflow import (
                 SiliconFlowImageProvider,
