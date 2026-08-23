@@ -48,6 +48,7 @@ export default function Workbench() {
   const [editorMode, setEditorMode] = useState<"simple" | "advanced">("advanced");
   const [generatingPrevis, setGeneratingPrevis] = useState(false);
   const [generatingFromVideo, setGeneratingFromVideo] = useState(false);
+  const [generatingFromVideoAdvanced, setGeneratingFromVideoAdvanced] = useState(false);
   const [batchCount, setBatchCount] = useState(2);
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
@@ -357,6 +358,30 @@ export default function Workbench() {
     }
   };
 
+  const handleGenerateFromVideoAdvanced = async (file: File) => {
+    setGeneratingFromVideoAdvanced(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      if (prompt.trim()) {
+        formData.append("prompt", prompt.trim());
+      }
+      formData.append("title", prompt.trim().slice(0, 20) || "参考视频动态白模");
+      const response = await client.post("/previs/generate-from-video-advanced", formData);
+      const project = response.data;
+      setProjectId(project.id);
+      setPrevisVideoUrl(project.previs_video_url);
+      loadScene(project.scene_json ?? emptyScene);
+      await loadProjects();
+      message.success("已根据参考视频生成动态白模项目");
+    } catch (error) {
+      console.error("参考视频生成动态白模失败", error);
+      message.error("参考视频生成动态白模失败，请检查后端与 LLM 配置");
+    } finally {
+      setGeneratingFromVideoAdvanced(false);
+    }
+  };
+
   const shotStarts = [0, ...shotMarkers.filter((marker) => marker > 0 && marker < duration), duration].sort(
     (a, b) => a - b
   );
@@ -571,6 +596,18 @@ export default function Workbench() {
               >
                 <Button block loading={generatingFromVideo}>
                   上传参考视频生成白模
+                </Button>
+              </Upload>
+              <Upload
+                accept="video/*"
+                showUploadList={false}
+                beforeUpload={(file) => {
+                  handleGenerateFromVideoAdvanced(file as File);
+                  return false;
+                }}
+              >
+                <Button block loading={generatingFromVideoAdvanced}>
+                  高级：参考视频生成动态白模
                 </Button>
               </Upload>
               <Space.Compact block>

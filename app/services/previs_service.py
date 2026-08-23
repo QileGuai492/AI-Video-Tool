@@ -535,3 +535,37 @@ def generate_previs_scene_from_video(prompt: str, frame_urls: list[str]) -> dict
     )
     scene = _parse_scene_json(result.text)
     return normalize_previs_scene(scene)
+
+
+def generate_previs_scene_from_video_advanced(prompt: str, frame_urls: list[str]) -> dict:
+    """根据参考视频关键帧序列生成带关键帧动画的白模场景（高级版）。
+
+    与 MVP 的区别：不仅识别静态物体，还要求 LLM 按时间顺序输出 humanoid/物体的
+    keyframes 和 cameraKeyframes，让白模直接带有动作/运镜动画。
+    """
+    system_prompt = (
+        "你是 3D 白模预演动画师。用户会按时间顺序提供参考视频的关键帧图片，"
+        "请分析画面中人物/物体的运动轨迹、姿态变化和运镜，生成带关键帧动画的 Three.js 白模场景 JSON。"
+        "只输出 JSON，不要解释。JSON 结构如下：\n"
+        "{\n"
+        '  "objects": [{"id": "obj_1", "name": "灰模人形", "type": "humanoid", "position": [0,0.5,0], "rotation": [0,0,0], "scale": [1,1,1]}],\n'
+        '  "keyframes": {"obj_1": [{"time": 0, "position": [0,0.5,0], "rotation": [0,0,0], "scale": [1,1,1]}, {"time": 4, "position": [2,0.5,0], "rotation": [0,0,0], "scale": [1,1,1]}]},\n'
+        '  "cameraKeyframes": [{"time": 0, "position": [5,4,5], "target": [0,0,0]}, {"time": 4, "position": [5,4,5], "target": [2,0,0]}],\n'
+        '  "shotMarkers": [2, 4],\n'
+        '  "shotDescriptions": {"2": {"action": "人物从左走到右", "camera": "侧面跟拍"}},\n'
+        '  "duration": 5\n'
+        "}\n"
+        "type 只能是 box/cylinder/sphere/plane/humanoid；objects 至少 1 个；"
+        "humanoid 必须包含至少 2 个不同时间的 keyframes 来体现动作；duration 建议 5~10。"
+    )
+    result = registry.get_llm_provider().complete(
+        LLMRequest(
+            system_prompt=system_prompt,
+            user_prompt=f"参考视频描述：{prompt}\n请按关键帧顺序生成带动作动画的白模场景。",
+            image_urls=frame_urls,
+            temperature=0.3,
+            max_tokens=4000,
+        )
+    )
+    scene = _parse_scene_json(result.text)
+    return normalize_previs_scene(scene)

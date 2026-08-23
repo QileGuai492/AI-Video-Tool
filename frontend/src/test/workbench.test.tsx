@@ -142,6 +142,9 @@ describe("Workbench", () => {
     expect(
       screen.getByRole("button", { name: /上\s*传\s*参\s*考\s*视\s*频\s*生\s*成\s*白\s*模/ })
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /高\s*级.*参\s*考\s*视\s*频\s*生\s*成\s*动\s*态\s*白\s*模/ })
+    ).toBeInTheDocument();
   });
 
   it("保存项目会调用 PUT /previs/projects/{id}", async () => {
