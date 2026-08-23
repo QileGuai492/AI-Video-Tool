@@ -82,6 +82,34 @@ def test_upload_previs_video(client, auth_headers) -> None:
     assert response.json()["previs_video_url"]
 
 
+def test_generate_previs_from_text(client, auth_headers, monkeypatch) -> None:
+    """文字生成白模接口应创建 auto 模式项目。"""
+    scene = {
+        "objects": [{"id": "obj_1", "name": "方块", "type": "box", "position": [0, 0.5, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]}],
+        "keyframes": {},
+        "cameraKeyframes": [{"time": 0, "position": [5, 4, 5], "target": [0, 0, 0]}],
+        "shotMarkers": [1, 3],
+        "shotDescriptions": {"1": {"action": "人物走入画面", "camera": "侧面跟拍"}},
+        "duration": 5,
+    }
+    monkeypatch.setattr(
+        "app.api.routes.previs.generate_previs_scene_from_text",
+        lambda prompt: scene,
+    )
+
+    response = client.post(
+        "/api/v1/previs/generate",
+        headers=auth_headers,
+        json={"prompt": "一只猫在夕阳下奔跑", "title": "自动生成项目"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["mode"] == "auto"
+    assert data["title"] == "自动生成项目"
+    assert data["scene_json"]["objects"]
+    assert data["camera_script"]["shots"]
+
+
 def test_generate_task_with_previs_video(client, auth_headers) -> None:
     """携带白模视频提交任务应能完成生成。"""
     # 准备一个本地白模视频文件

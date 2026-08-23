@@ -36,6 +36,7 @@ export default function Workbench() {
   const [submitting, setSubmitting] = useState(false);
   const [projects, setProjects] = useState<PrevisProjectItem[]>([]);
   const [editorMode, setEditorMode] = useState<"simple" | "advanced">("advanced");
+  const [generatingPrevis, setGeneratingPrevis] = useState(false);
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const shotMarkers = usePrevisStore((state) => state.shotMarkers);
@@ -158,6 +159,31 @@ export default function Workbench() {
     }
   };
 
+  const handleGeneratePrevis = async () => {
+    if (!prompt.trim()) {
+      message.warning("请先输入文案");
+      return;
+    }
+    setGeneratingPrevis(true);
+    try {
+      const response = await client.post("/previs/generate", {
+        prompt: prompt.trim(),
+        title: prompt.trim().slice(0, 20),
+      });
+      const project = response.data;
+      setProjectId(project.id);
+      setPrevisVideoUrl(project.previs_video_url);
+      loadScene(project.scene_json ?? emptyScene);
+      await loadProjects();
+      message.success("已根据文案生成白模项目");
+    } catch (error) {
+      console.error("文字生成白模失败", error);
+      message.error("文字生成白模失败，请检查后端与 LLM 配置");
+    } finally {
+      setGeneratingPrevis(false);
+    }
+  };
+
   const shotStarts = [0, ...shotMarkers.filter((marker) => marker > 0 && marker < duration), duration].sort(
     (a, b) => a - b
   );
@@ -260,6 +286,9 @@ export default function Workbench() {
               <Text type="secondary">
                 {previsVideoUrl ? "白模视频已就绪，可以提交生成" : "请先录制白模视频"}
               </Text>
+              <Button block loading={generatingPrevis} onClick={handleGeneratePrevis}>
+                文字生成白模
+              </Button>
               <Button type="primary" block loading={submitting} onClick={handleSubmitGenerate}>
                 提交 AI 生成
               </Button>

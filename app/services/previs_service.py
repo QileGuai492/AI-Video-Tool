@@ -5,11 +5,15 @@ Phase 1 提供：
 - 基于镜头脚本生成提示词
 """
 
+import json
+import re
 import shutil
 import subprocess
 import uuid
 from pathlib import Path
 
+from app.providers.base import LLMRequest
+from app.providers.registry import registry
 from app.storage import storage
 
 
@@ -163,3 +167,54 @@ def build_shot_prompt(
         f"{mapping_text}"
         "不保留白模材质、轨迹线、坐标线或相机锥体。"
     )
+
+
+def _parse_scene_json(text: str) -> dict:
+    """从 LLM 输出中解析场景 JSON，兼容代码块包裹。"""
+    cleaned = text.strip()
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        # 尝试提取第一个 { ... } 块
+        match = re.search(r"\{.*\}", cleaned, re.S)
+        if match is None:
+            raise ValueError("LLM 未返回有效的场景 JSON") from exc
+        data = json.loads(match.group(0))
+    if not isinstance(data, dict):
+        raise ValueError("场景 JSON 必须为对象")
+    return data
+
+
+def generate_previs_scene_from_text(prompt: str) -> dict:
+    """根据文案调用 LLM 生成白模场景 JSON。"""
+    system_prompt = (
+        "你是 3D 白模预演场景生成器。根据用户的视频文案，生成可直接被 Three.js 编辑器加载的场景 JSON。"
+        "只输出 JSON，不要解释。JSON 结构如下：\n"
+        "{\n"
+        '  "objects": [{"id": "obj_1", "name": "方块", "type": "box", "position": [0,0.5,0], "rotation": [0,0,0], "scale": [1,1,1]}],\n'
+        '  "keyframes": {},\n'
+        '  "cameraKeyframes": [{"time": 0, "position": [5,4,5], "target": [0,0,0]}],\n'
+        '  "shotMarkers": [1, 3],\n'
+        '  "shotDescriptions": {"1": {"action": "人物走入画面", "camera": "侧面跟拍"}},\n'
+        '  "duration": 5\n'
+        "}\n"
+        "type 只能是 box/cylinder/sphere/plane/humanoid；objects 至少 1 个；duration 建议 5~10。"
+    )
+    result = registry.get_llm_provider().complete(
+        LLMRequest(
+            system_prompt=system_prompt,
+            user_prompt=f"视频文案：{prompt}",
+            temperature=0.4,
+            max_tokens=3000,
+        )
+    )
+    scene = _parse_scene_json(result.text)
+    scene.setdefault("objects", [])
+    scene.setdefault("keyframes", {})
+    scene.setdefault("cameraKeyframes", [{"time": 0, "position": [5, 4, 5], "target": [0, 0, 0]}])
+    scene.setdefault("shotMarkers", [])
+    scene.setdefault("shotDescriptions", {})
+    scene.setdefault("duration", 5)
+    return scene

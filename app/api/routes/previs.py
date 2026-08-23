@@ -11,13 +11,14 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models import PrevisProject, PrevisTemplate, User
 from app.schemas.previs import (
+    PrevisGenerateRequest,
     PrevisProjectCreate,
     PrevisProjectRead,
     PrevisProjectUpdate,
     PrevisTemplateCreate,
     PrevisTemplateRead,
 )
-from app.services.previs_service import convert_webm_to_mp4
+from app.services.previs_service import convert_webm_to_mp4, generate_previs_scene_from_text
 from app.storage import storage
 
 router = APIRouter(prefix="/previs", tags=["白模预演"])
@@ -73,6 +74,50 @@ def create_previs_project(
         scene_json=payload.scene_json,
         camera_script=payload.camera_script,
         mapping_rules=payload.mapping_rules,
+        status="draft",
+    )
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.post("/generate", response_model=PrevisProjectRead)
+def generate_previs_project(
+    payload: PrevisGenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PrevisProject:
+    """根据文案自动生成白模项目。"""
+    scene = generate_previs_scene_from_text(payload.prompt)
+    duration = float(scene.get("duration", 5) or 5)
+    markers = sorted(
+        {0, *[float(m) for m in scene.get("shotMarkers", []) if float(m) > 0 and float(m) < duration], duration}
+    )
+    descriptions = scene.get("shotDescriptions", {}) or {}
+    shots = []
+    for index in range(len(markers) - 1):
+        start = markers[index]
+        description = (
+            descriptions.get(str(start))
+            or descriptions.get(str(int(start)))
+            or descriptions.get(start)
+            or {"action": "", "camera": ""}
+        )
+        shots.append(
+            {
+                "start": start,
+                "end": markers[index + 1],
+                "action": description.get("action", ""),
+                "camera": description.get("camera", ""),
+            }
+        )
+    project = PrevisProject(
+        user_id=current_user.id,
+        title=payload.title or payload.prompt[:20],
+        mode="auto",
+        scene_json=scene,
+        camera_script={"shots": shots},
         status="draft",
     )
     db.add(project)

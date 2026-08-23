@@ -1,6 +1,14 @@
 """白模预演服务单元测试。"""
 
-from app.services.previs_service import build_segment_prompt, build_shot_prompt
+from decimal import Decimal
+
+from app.providers.base import LLMResult
+from app.services.previs_service import (
+    _parse_scene_json,
+    build_segment_prompt,
+    build_shot_prompt,
+    generate_previs_scene_from_text,
+)
 
 
 def test_build_shot_prompt_contains_mapping_and_ban() -> None:
@@ -30,3 +38,42 @@ def test_build_segment_prompt_merges_shot_description() -> None:
     assert "一只猫在夕阳下奔跑" in prompt
     assert "动作：从左侧跑向右侧" in prompt
     assert "运镜：侧面跟拍" in prompt
+
+
+class FakeSceneLLM:
+    """模拟返回场景 JSON 的 LLM。"""
+
+    name = "fake_scene"
+
+    def complete(self, request):
+        return LLMResult(
+            text=(
+                '{"objects": [{"id": "obj_1", "name": "方块", "type": "box", '
+                '"position": [0,0.5,0], "rotation": [0,0,0], "scale": [1,1,1]}], '
+                '"keyframes": {}, "cameraKeyframes": [{"time": 0, "position": [5,4,5], '
+                '"target": [0,0,0]}], "shotMarkers": [1, 3], "shotDescriptions": '
+                '{"1": {"action": "人物走入画面", "camera": "侧面跟拍"}}, "duration": 5}'
+            ),
+            provider=self.name,
+            cost=Decimal("0"),
+            raw_response={},
+        )
+
+
+def test_parse_scene_json_with_code_fence() -> None:
+    """应能解析代码块包裹的 JSON。"""
+    scene = _parse_scene_json('```json\n{"objects": []}\n```')
+    assert scene == {"objects": []}
+
+
+def test_generate_previs_scene_from_text(monkeypatch) -> None:
+    """文字生成白模应返回规范化场景。"""
+    monkeypatch.setattr(
+        "app.services.previs_service.registry.get_llm_provider",
+        lambda: FakeSceneLLM(),
+    )
+    scene = generate_previs_scene_from_text("一只猫在夕阳下奔跑")
+    assert scene["objects"]
+    assert scene["objects"][0]["type"] == "box"
+    assert scene["duration"] == 5
+    assert scene["shotMarkers"] == [1, 3]

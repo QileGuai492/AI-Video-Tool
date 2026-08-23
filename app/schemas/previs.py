@@ -31,6 +31,13 @@ class PrevisTemplateRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PrevisGenerateRequest(BaseModel):
+    """文字生成白模项目请求。"""
+
+    prompt: str = Field(min_length=1, max_length=2000)
+    title: str | None = Field(default=None, max_length=128)
+
+
 class PrevisProjectCreate(BaseModel):
     """创建白模项目请求。"""
 
