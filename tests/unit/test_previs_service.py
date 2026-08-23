@@ -16,6 +16,7 @@ from app.services.previs_service import (
     build_shot_prompt,
     convert_webm_to_mp4,
     generate_previs_scene_from_text,
+    generate_previs_scene_from_video,
     normalize_previs_scene,
     seed_builtin_previs_templates,
 )
@@ -147,3 +148,40 @@ def test_convert_webm_to_mp4_scales_even_dimensions(monkeypatch, local_tmp_path)
     command = captured["command"]
     assert "-vf" in command
     assert "scale=trunc(iw/2)*2:trunc(ih/2)*2" in command
+
+
+def test_generate_previs_scene_from_video_passes_image_urls(monkeypatch) -> None:
+    """视频生成白模应把关键帧图片 URL 传给多模态 LLM。"""
+    captured: dict = {}
+
+    class FakeVideoLLM:
+        name = "fake_video"
+
+        def complete(self, request):
+            captured["image_urls"] = request.image_urls
+            return LLMResult(
+                text=(
+                    '{"objects": [{"id": "obj_1", "name": "灰模人形", "type": "humanoid", '
+                    '"position": [0,0.5,0], "rotation": [0,0,0], "scale": [1,1,1]}], '
+                    '"keyframes": {}, "cameraKeyframes": [{"time": 0, "position": [5,4,5], '
+                    '"target": [0,0,0]}], "shotMarkers": [], "shotDescriptions": {}, "duration": 5}'
+                ),
+                provider=self.name,
+                cost=Decimal("0"),
+                raw_response={},
+            )
+
+    monkeypatch.setattr(
+        "app.services.previs_service.registry.get_llm_provider",
+        lambda: FakeVideoLLM(),
+    )
+
+    scene = generate_previs_scene_from_video(
+        "参考视频",
+        ["/uploads/previs_frames/1.jpg", "/uploads/previs_frames/2.jpg"],
+    )
+    assert captured["image_urls"] == [
+        "/uploads/previs_frames/1.jpg",
+        "/uploads/previs_frames/2.jpg",
+    ]
+    assert scene["objects"][0]["type"] == "humanoid"

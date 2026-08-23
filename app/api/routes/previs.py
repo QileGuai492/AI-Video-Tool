@@ -4,7 +4,7 @@ import logging
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -19,7 +19,12 @@ from app.schemas.previs import (
     PrevisTemplateCreate,
     PrevisTemplateRead,
 )
-from app.services.previs_service import convert_webm_to_mp4, generate_previs_scene_from_text
+from app.services.previs_service import (
+    convert_webm_to_mp4,
+    extract_keyframes,
+    generate_previs_scene_from_text,
+    generate_previs_scene_from_video,
+)
 from app.storage import storage
 
 logger = logging.getLogger(__name__)
@@ -137,6 +142,73 @@ def generate_previs_project(
     project = PrevisProject(
         user_id=current_user.id,
         title=payload.title or payload.prompt[:20],
+        mode="auto",
+        scene_json=scene,
+        camera_script={"shots": shots},
+        status="draft",
+    )
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.post("/generate-from-video", response_model=PrevisProjectRead)
+async def generate_previs_project_from_video(
+    file: UploadFile = File(...),
+    prompt: str | None = Form(None),
+    title: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PrevisProject:
+    """上传参考视频，自动抽帧并生成白模项目（MVP）。"""
+    suffix = Path(file.filename or "").suffix.lower().lstrip(".")
+    if suffix not in {"mp4", "webm", "mov", "avi", "mkv"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持视频文件")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="视频文件为空")
+
+    key = storage.upload(content=content, suffix=suffix, folder="previs_reference")
+    video_url = storage.get_url(key)
+    try:
+        frame_urls = extract_keyframes(video_url, interval_seconds=1.0)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("参考视频抽帧失败")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"参考视频抽帧失败：{exc}",
+        ) from exc
+    if not frame_urls:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="未能从参考视频中提取到关键帧")
+
+    scene = generate_previs_scene_from_video(prompt or "根据参考视频生成白模场景", frame_urls)
+    duration = float(scene.get("duration", 5) or 5)
+    markers = sorted(
+        {0, *[float(m) for m in scene.get("shotMarkers", []) if float(m) > 0 and float(m) < duration], duration}
+    )
+    descriptions = scene.get("shotDescriptions", {}) or {}
+    shots = []
+    for index in range(len(markers) - 1):
+        start = markers[index]
+        description = (
+            descriptions.get(str(start))
+            or descriptions.get(str(int(start)))
+            or descriptions.get(start)
+            or {"action": "", "camera": ""}
+        )
+        shots.append(
+            {
+                "start": start,
+                "end": markers[index + 1],
+                "action": description.get("action", ""),
+                "camera": description.get("camera", ""),
+            }
+        )
+
+    project = PrevisProject(
+        user_id=current_user.id,
+        title=title or "参考视频白模",
         mode="auto",
         scene_json=scene,
         camera_script={"shots": shots},

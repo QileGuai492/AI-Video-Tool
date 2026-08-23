@@ -506,3 +506,32 @@ def generate_previs_scene_from_text(prompt: str) -> dict:
     )
     scene = _parse_scene_json(result.text)
     return normalize_previs_scene(scene)
+
+
+def generate_previs_scene_from_video(prompt: str, frame_urls: list[str]) -> dict:
+    """根据参考视频关键帧调用多模态 LLM 生成白模场景 JSON。"""
+    system_prompt = (
+        "你是 3D 白模预演场景生成器。用户会提供参考视频的关键帧图片，"
+        "请分析画面中的人物、物体、动作和运镜，生成可直接被 Three.js 编辑器加载的白模场景 JSON。"
+        "只输出 JSON，不要解释。JSON 结构如下：\n"
+        "{\n"
+        '  "objects": [{"id": "obj_1", "name": "灰模人形", "type": "humanoid", "position": [0,0.5,0], "rotation": [0,0,0], "scale": [1,1,1]}],\n'
+        '  "keyframes": {},\n'
+        '  "cameraKeyframes": [{"time": 0, "position": [5,4,5], "target": [0,0,0]}],\n'
+        '  "shotMarkers": [1, 3],\n'
+        '  "shotDescriptions": {"1": {"action": "人物走入画面", "camera": "侧面跟拍"}},\n'
+        '  "duration": 5\n'
+        "}\n"
+        "type 只能是 box/cylinder/sphere/plane/humanoid；objects 至少 1 个；duration 建议 5~10。"
+    )
+    result = registry.get_llm_provider().complete(
+        LLMRequest(
+            system_prompt=system_prompt,
+            user_prompt=f"参考视频描述：{prompt}\n请根据这些关键帧生成白模场景。",
+            image_urls=frame_urls,
+            temperature=0.4,
+            max_tokens=3000,
+        )
+    )
+    scene = _parse_scene_json(result.text)
+    return normalize_previs_scene(scene)
