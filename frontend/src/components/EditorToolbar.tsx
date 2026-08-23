@@ -1,6 +1,7 @@
 import { Button, Space, Typography, message } from "antd";
 import { useRef } from "react";
 import { cameraRef } from "../previs/cameraRef";
+import { applyCameraPreset, CAMERA_PRESET_LABELS, type CameraPreset } from "../previs/cameraPresets";
 import { usePrevisStore } from "../previs/store";
 import type { ObjectType, SceneState } from "../previs/types";
 
@@ -45,6 +46,13 @@ export default function EditorToolbar({ onSave }: { onSave?: (scene: unknown) =>
     message.success(`已记录相机关键帧：${currentTime.toFixed(1)}s（共 ${cameraKeyframes.length + 1} 个）`);
   };
 
+  const handleCameraPreset = (preset: CameraPreset) => {
+    const next = applyCameraPreset(preset, cameraRef.position, cameraRef.target);
+    addCameraKeyframe(currentTime, next.position, next.target);
+    const label = CAMERA_PRESET_LABELS.find((item) => item.value === preset)?.label ?? preset;
+    message.success(`已应用运镜预设「${label}」并记录关键帧：${currentTime.toFixed(1)}s`);
+  };
+
   const handleImport = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -80,6 +88,11 @@ export default function EditorToolbar({ onSave }: { onSave?: (scene: unknown) =>
         删除
       </Button>
       <Button onClick={handleAddCameraKeyframe}>记录相机（{cameraKeyframes.length}）</Button>
+      {CAMERA_PRESET_LABELS.map((item) => (
+        <Button key={item.value} onClick={() => handleCameraPreset(item.value)}>
+          {item.label}
+        </Button>
+      ))}
       <Button onClick={() => setIsPlaying(!isPlaying)}>{isPlaying ? "暂停" : "播放"}</Button>
       <Button onClick={handleExport}>导出 JSON</Button>
       <Button onClick={() => fileInputRef.current?.click()}>导入 JSON</Button>
