@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Card, Col, Input, InputNumber, List, Row, Segmented, Space, Typography, message } from "antd";
+import { Alert, Button, Card, Col, Input, InputNumber, List, Row, Segmented, Space, Typography, Upload, message } from "antd";
 import client from "../api/client";
 import EditorToolbar from "../components/EditorToolbar";
 import KeyframeList from "../components/KeyframeList";
@@ -49,6 +49,8 @@ export default function Workbench() {
   const [generatingPrevis, setGeneratingPrevis] = useState(false);
   const [batchCount, setBatchCount] = useState(2);
   const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [referenceImages, setReferenceImages] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const shotMarkers = usePrevisStore((state) => state.shotMarkers);
@@ -227,9 +229,25 @@ export default function Workbench() {
     }
   };
 
+  const handleUploadImage = async (file: File) => {
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("file_type", "image");
+      const response = await client.post("/upload", formData);
+      setReferenceImages((prev) => [...prev, response.data.file_url]);
+      message.success("参考图已上传");
+    } catch {
+      message.error("参考图上传失败");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleSubmitGenerate = async () => {
-    if (!previsVideoUrl) {
-      message.warning("请先录制并上传白模视频");
+    if (!previsVideoUrl && referenceImages.length === 0) {
+      message.warning("请先上传参考图或录制白模视频");
       return;
     }
     if (!prompt.trim()) {
@@ -240,8 +258,10 @@ export default function Workbench() {
     try {
       const response = await client.post("/generate/video", {
         prompt: prompt.trim(),
+        image_url: referenceImages[0] ?? null,
+        reference_image_urls: referenceImages.length > 0 ? referenceImages : null,
         previs_video_url: previsVideoUrl,
-        previs_type: "coarse",
+        previs_type: previsVideoUrl ? "coarse" : null,
         camera_script: buildCameraScript(),
         duration: 5,
         aspect_ratio: "16:9",
@@ -256,8 +276,8 @@ export default function Workbench() {
   };
 
   const handleBatchGenerate = async () => {
-    if (!previsVideoUrl) {
-      message.warning("请先录制并上传白模视频");
+    if (!previsVideoUrl && referenceImages.length === 0) {
+      message.warning("请先上传参考图或录制白模视频");
       return;
     }
     if (!prompt.trim()) {
@@ -269,8 +289,10 @@ export default function Workbench() {
       const response = await client.post("/generate/batch", {
         prompt: prompt.trim(),
         count: batchCount,
+        image_url: referenceImages[0] ?? null,
+        reference_image_urls: referenceImages.length > 0 ? referenceImages : null,
         previs_video_url: previsVideoUrl,
-        previs_type: "coarse",
+        previs_type: previsVideoUrl ? "coarse" : null,
         camera_script: buildCameraScript(),
         duration: 5,
         aspect_ratio: "16:9",
@@ -468,6 +490,49 @@ export default function Workbench() {
               onChange={(event) => setPrompt(event.target.value)}
             />
             <Space direction="vertical" style={{ width: "100%", marginTop: 12 }}>
+              <Space>
+                <Upload
+                  accept="image/*"
+                  showUploadList={false}
+                  beforeUpload={(file) => {
+                    handleUploadImage(file as File);
+                    return false;
+                  }}
+                >
+                  <Button loading={uploadingImage}>上传参考图</Button>
+                </Upload>
+                {referenceImages.length > 0 ? (
+                  <Text type="secondary">{referenceImages.length} 张参考图</Text>
+                ) : null}
+              </Space>
+              {referenceImages.length > 0 ? (
+                <Space wrap>
+                  {referenceImages.map((url, index) => (
+                    <Space key={url} direction="vertical" size={0}>
+                      <img
+                        src={url}
+                        alt={`参考图${index + 1}`}
+                        style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }}
+                      />
+                      <Button
+                        size="small"
+                        type="text"
+                        danger
+                        onClick={() => setReferenceImages((prev) => prev.filter((item) => item !== url))}
+                      >
+                        移除
+                      </Button>
+                    </Space>
+                  ))}
+                </Space>
+              ) : null}
+              <Text type="secondary">
+                {previsVideoUrl
+                  ? "白模视频已就绪，可以提交生成"
+                  : referenceImages.length > 0
+                    ? "参考图已就绪，可以提交生成"
+                    : "请上传参考图或录制白模视频"}
+              </Text>
               <Text type="secondary">
                 {previsVideoUrl ? "白模视频已就绪，可以提交生成" : "请先录制白模视频"}
               </Text>

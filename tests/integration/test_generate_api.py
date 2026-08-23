@@ -124,3 +124,30 @@ def test_retry_cancelled_task(client, auth_headers, db_session) -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "pending"
 
+
+def test_submit_task_with_reference_images(client, auth_headers, db_session) -> None:
+    """提交任务时应保存首图与多张参考图 URL。"""
+    response = client.post(
+        "/api/v1/generate/video",
+        headers=auth_headers,
+        json={
+            "prompt": "根据参考图生成视频",
+            "image_url": "/uploads/images/first.png",
+            "reference_image_urls": [
+                "/uploads/images/ref1.png",
+                "/uploads/images/ref2.png",
+            ],
+            "duration": 5,
+            "aspect_ratio": "16:9",
+            "quality": "standard",
+        },
+    )
+    assert response.status_code == 200
+    task = db_session.query(VideoTask).filter(VideoTask.id == response.json()["id"]).first()
+    assert task is not None
+    assert task.image_url == "/uploads/images/first.png"
+    assert task.reference_image_urls == [
+        "/uploads/images/ref1.png",
+        "/uploads/images/ref2.png",
+    ]
+

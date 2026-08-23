@@ -163,7 +163,7 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
         if task is None:
             return {**state, "error": "任务不存在"}
 
-        reference_image_urls: list[str] = []
+        reference_image_urls: list[str] = list(task.reference_image_urls or [])
         if task.character_id is not None:
             character = db.query(Character).filter(Character.id == task.character_id).first()
             if character is not None:
@@ -189,6 +189,9 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
                 "first_frame_url": previs_frames[0],
                 "previs_frames": previs_frames,
             }
+
+        if task.image_url:
+            return {**state, "first_frame_url": task.image_url, "previs_frames": []}
 
         provider = registry.get_image_provider()
         result = provider.generate_image(
@@ -227,6 +230,17 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
         mock_clip_path = Path("app/providers/assets/mock_clip.mp4")
         placeholder_content = mock_clip_path.read_bytes() if mock_clip_path.exists() else b"mock-video"
         camera_shots = (task.camera_script or {}).get("shots", [])
+        reference_image_urls: list[str] = list(task.reference_image_urls or [])
+        if task.character_id is not None:
+            character = db.query(Character).filter(Character.id == task.character_id).first()
+            if character is not None:
+                reference_image_urls.append(character.reference_image_url)
+                multi_views = (
+                    db.query(CharacterMultiView)
+                    .filter(CharacterMultiView.character_id == character.id)
+                    .all()
+                )
+                reference_image_urls.extend(view.image_url for view in multi_views)
 
         for index in range(segment_count):
             frame_url = previs_frames[index % len(previs_frames)] if previs_frames else state.get("first_frame_url")
@@ -235,6 +249,7 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
             request = VideoGenerationRequest(
                 prompt=segment_prompt,
                 first_frame_url=frame_url,
+                reference_image_urls=reference_image_urls,
                 duration=5,
                 aspect_ratio=task.aspect_ratio or "16:9",
                 model=task.resolution or "720p",

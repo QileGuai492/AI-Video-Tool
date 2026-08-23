@@ -50,6 +50,7 @@ def submit_batch_tasks(
         single = GenerateVideoRequest(
             prompt=payload.prompt,
             image_url=payload.image_url,
+            reference_image_urls=payload.reference_image_urls,
             duration=payload.duration,
             aspect_ratio=payload.aspect_ratio,
             quality=payload.quality,

@@ -77,6 +77,8 @@ class VideoTask(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     character_id: Mapped[int | None] = mapped_column(ForeignKey("characters.id"), nullable=True, index=True)
+    image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    reference_image_urls: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     optimized_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False, index=True)

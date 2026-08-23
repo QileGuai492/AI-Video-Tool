@@ -10,6 +10,7 @@ class GenerateVideoRequest(BaseModel):
 
     prompt: str = Field(min_length=1, max_length=2000)
     image_url: str | None = None
+    reference_image_urls: list[str] | None = None
     duration: int = Field(default=60, ge=5, le=120)
     aspect_ratio: str = Field(default="16:9", pattern="^(16:9|9:16|1:1)$")
     quality: str = Field(default="standard", pattern="^(fast|standard|high)$")
@@ -28,6 +29,7 @@ class GenerateBatchRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
     count: int = Field(default=2, ge=1, le=5)
     image_url: str | None = None
+    reference_image_urls: list[str] | None = None
     duration: int = Field(default=60, ge=5, le=120)
     aspect_ratio: str = Field(default="16:9", pattern="^(16:9|9:16|1:1)$")
     quality: str = Field(default="standard", pattern="^(fast|standard|high)$")

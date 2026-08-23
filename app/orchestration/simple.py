@@ -91,7 +91,9 @@ class SimpleTaskOrchestrator:
             task.status = "generating_first_frame"
             db.commit()
 
-            reference_image_urls = self._get_reference_image_urls(db, task.character_id)
+            reference_image_urls = list(task.reference_image_urls or []) + self._get_reference_image_urls(
+                db, task.character_id
+            )
             previs_frames: list[str] = []
             first_frame_url: str | None = None
 
@@ -105,6 +107,8 @@ class SimpleTaskOrchestrator:
                 if not previs_frames:
                     raise RuntimeError("白模视频未抽取到关键帧")
                 first_frame_url = previs_frames[0]
+            elif task.image_url:
+                first_frame_url = task.image_url
             else:
                 image_provider = registry.get_image_provider()
                 image_result = image_provider.generate_image(
