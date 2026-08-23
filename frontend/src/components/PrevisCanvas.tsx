@@ -113,7 +113,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
     camera.lookAt(0, 0, 0);
     cameraObjectRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
     containerRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -360,6 +360,10 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       clockRef.current = new THREE.Clock();
       usePrevisStore.getState().setCurrentTime(0);
       usePrevisStore.getState().setIsPlaying(true);
+      // 录制前先渲染一帧，确保 canvas 上有可捕获的画面
+      if (sceneRef.current && cameraObjectRef.current) {
+        renderer.render(sceneRef.current, cameraObjectRef.current);
+      }
       recorder.start();
       recorderRef.current = recorder;
       setIsRecording(true);
