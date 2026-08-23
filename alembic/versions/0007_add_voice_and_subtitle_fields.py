@@ -2,7 +2,7 @@
 
 from alembic import op
 
-revision = "0007_add_voice_and_subtitle_fields"
+revision = "0007_add_voice_subtitle"
 down_revision = "0006_add_uid_columns"
 branch_labels = None
 depends_on = None
