@@ -375,7 +375,9 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       recordingCanvasRef.current = recordingCanvas;
       recordingCtxRef.current = recordingCtx;
 
-      const stream = recordingCanvas.captureStream(30);
+      // 用 0 帧率 + 手动 requestFrame()：Edge 对离屏 canvas 的自动 captureStream 可能不产出帧，
+      // 手动模式能在每次 drawImage 后强制采集一帧，兼容性更好。
+      const stream = recordingCanvas.captureStream(0);
       const videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
       recordingTrackRef.current = videoTrack ?? null;
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
