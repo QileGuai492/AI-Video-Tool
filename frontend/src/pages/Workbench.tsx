@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Card, Col, Input, List, Row, Segmented, Space, Typography, message } from "antd";
+import { Alert, Button, Card, Col, Input, InputNumber, List, Row, Segmented, Space, Typography, message } from "antd";
 import client from "../api/client";
 import EditorToolbar from "../components/EditorToolbar";
 import KeyframeList from "../components/KeyframeList";
@@ -47,6 +47,8 @@ export default function Workbench() {
   const [templates, setTemplates] = useState<PrevisTemplateItem[]>([]);
   const [editorMode, setEditorMode] = useState<"simple" | "advanced">("advanced");
   const [generatingPrevis, setGeneratingPrevis] = useState(false);
+  const [batchCount, setBatchCount] = useState(2);
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const shotMarkers = usePrevisStore((state) => state.shotMarkers);
@@ -219,6 +221,36 @@ export default function Workbench() {
     }
   };
 
+  const handleBatchGenerate = async () => {
+    if (!previsVideoUrl) {
+      message.warning("请先录制并上传白模视频");
+      return;
+    }
+    if (!prompt.trim()) {
+      message.warning("请输入成片文案");
+      return;
+    }
+    setBatchSubmitting(true);
+    try {
+      const response = await client.post("/generate/batch", {
+        prompt: prompt.trim(),
+        count: batchCount,
+        previs_video_url: previsVideoUrl,
+        previs_type: "coarse",
+        camera_script: buildCameraScript(),
+        duration: 5,
+        aspect_ratio: "16:9",
+        quality: "standard",
+      });
+      message.success(`已提交 ${response.data.count} 个批量任务`);
+    } catch (error) {
+      console.error("批量生成失败", error);
+      message.error("批量生成失败，请检查后端配置");
+    } finally {
+      setBatchSubmitting(false);
+    }
+  };
+
   const handleGeneratePrevis = async () => {
     if (!prompt.trim()) {
       message.warning("请先输入文案");
@@ -372,6 +404,18 @@ export default function Workbench() {
               <Button block loading={generatingPrevis} onClick={handleGeneratePrevis}>
                 文字生成白模
               </Button>
+              <Space.Compact block>
+                <InputNumber
+                  min={1}
+                  max={5}
+                  value={batchCount}
+                  onChange={(value) => setBatchCount(value ?? 2)}
+                  style={{ width: 80 }}
+                />
+                <Button block loading={batchSubmitting} onClick={handleBatchGenerate}>
+                  批量生成
+                </Button>
+              </Space.Compact>
               <Button type="primary" block loading={submitting} onClick={handleSubmitGenerate}>
                 提交 AI 生成
               </Button>
