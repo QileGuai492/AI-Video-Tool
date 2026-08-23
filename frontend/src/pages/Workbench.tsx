@@ -128,6 +128,33 @@ export default function Workbench() {
     return { shots };
   };
 
+  const handleDeleteProject = async (id: number) => {
+    if (!window.confirm("确定删除该项目？")) return;
+    try {
+      await client.delete(`/previs/projects/${id}`);
+      message.success("项目已删除");
+      if (projectId === id) {
+        setProjectId(null);
+        setPrevisVideoUrl(null);
+        loadScene(emptyScene);
+      }
+      await loadProjects();
+    } catch {
+      message.error("删除项目失败");
+    }
+  };
+
+  const handleDeleteTemplate = async (id: number) => {
+    if (!window.confirm("确定删除该模板？")) return;
+    try {
+      await client.delete(`/previs/templates/${id}`);
+      message.success("模板已删除");
+      await loadTemplates();
+    } catch {
+      message.error("删除模板失败");
+    }
+  };
+
   const handleUseTemplate = async (template: PrevisTemplateItem) => {
     try {
       const scene = template.scene_json ?? emptyScene;
@@ -312,6 +339,19 @@ export default function Workbench() {
                     <List.Item
                       style={{ cursor: "pointer", padding: "6px 0" }}
                       onClick={() => handleLoadProject(project)}
+                      actions={[
+                        <Button
+                          key="delete"
+                          size="small"
+                          danger
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleDeleteProject(project.id);
+                          }}
+                        >
+                          删除
+                        </Button>,
+                      ]}
                     >
                       <Space direction="vertical" size={0}>
                         <Text>{project.title}</Text>
@@ -337,6 +377,23 @@ export default function Workbench() {
                     <List.Item
                       style={{ cursor: "pointer", padding: "6px 0" }}
                       onClick={() => handleUseTemplate(template)}
+                      actions={
+                        template.is_builtin
+                          ? undefined
+                          : [
+                              <Button
+                                key="delete"
+                                size="small"
+                                danger
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleDeleteTemplate(template.id);
+                                }}
+                              >
+                                删除
+                              </Button>,
+                            ]
+                      }
                     >
                       <Space direction="vertical" size={0}>
                         <Text>{template.name}</Text>

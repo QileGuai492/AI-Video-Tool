@@ -54,6 +54,17 @@ export default function Characters() {
     }
   };
 
+  const handleDelete = async (characterId: number) => {
+    if (!window.confirm("确定删除该角色？")) return;
+    try {
+      await client.delete(`/characters/${characterId}`);
+      message.success("角色已删除");
+      load();
+    } catch {
+      message.error("删除角色失败");
+    }
+  };
+
   const handleAddMultiView = async (characterId: number, values: { view_name: string; image_url: string }) => {
     setMultiViewSubmitting(characterId);
     try {
@@ -101,7 +112,14 @@ export default function Characters() {
             <Col key={character.id} xs={24} sm={12} md={8}>
               <Card
                 title={character.name}
-                extra={<Text type="secondary">#{character.id}</Text>}
+                extra={
+                  <Space>
+                    <Text type="secondary">#{character.id}</Text>
+                    <Button size="small" danger onClick={() => handleDelete(character.id)}>
+                      删除
+                    </Button>
+                  </Space>
+                }
               >
                 {character.reference_image_url ? (
                   <img

@@ -8,11 +8,13 @@ vi.mock("../api/client", () => ({
   default: {
     get: vi.fn(),
     post: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
 const mockedGet = vi.mocked(client.get);
 const mockedPost = vi.mocked(client.post);
+const mockedDelete = vi.mocked(client.delete);
 
 describe("Characters", () => {
   beforeEach(() => {
@@ -57,5 +59,29 @@ describe("Characters", () => {
         reference_image_url: "https://example.com/b.png",
       })
     );
+  });
+
+  it("删除角色会调用 DELETE /characters/{id}", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    mockedGet.mockResolvedValue({
+      data: [
+        {
+          id: 1,
+          name: "测试角色",
+          reference_image_url: "https://example.com/a.png",
+          description: "描述",
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+    mockedDelete.mockResolvedValue({});
+
+    render(<Characters />);
+    await screen.findByText("测试角色");
+    await user.click(screen.getByRole("button", { name: /删\s*除/ }));
+
+    expect(mockedDelete).toHaveBeenCalledWith("/characters/1");
+    confirmSpy.mockRestore();
   });
 });

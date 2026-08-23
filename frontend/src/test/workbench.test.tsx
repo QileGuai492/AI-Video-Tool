@@ -9,6 +9,7 @@ vi.mock("../api/client", () => ({
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -31,6 +32,7 @@ vi.mock("../components/KeyframeList", () => ({
 const mockedGet = vi.mocked(client.get);
 const mockedPost = vi.mocked(client.post);
 const mockedPut = vi.mocked(client.put);
+const mockedDelete = vi.mocked(client.delete);
 
 const project = {
   id: 1,
@@ -142,5 +144,19 @@ describe("Workbench", () => {
     await user.click(screen.getByRole("button", { name: /保\s*存\s*项\s*目/ }));
 
     expect(mockedPut).toHaveBeenCalledWith("/previs/projects/1", expect.any(Object));
+  });
+
+  it("删除项目会调用 DELETE /previs/projects/{id}", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    mockListData([project], []);
+    mockedDelete.mockResolvedValue({});
+
+    render(<Workbench />);
+    await screen.findByText("测试项目");
+    await user.click(screen.getByRole("button", { name: /删\s*除/ }));
+
+    expect(mockedDelete).toHaveBeenCalledWith("/previs/projects/1");
+    confirmSpy.mockRestore();
   });
 });

@@ -42,6 +42,17 @@ export default function Templates() {
     }
   };
 
+  const handleDelete = async (templateId: number) => {
+    if (!window.confirm("确定删除该模板？")) return;
+    try {
+      await client.delete(`/templates/${templateId}`);
+      message.success("模板已删除");
+      load();
+    } catch {
+      message.error("删除模板失败");
+    }
+  };
+
   return (
     <div>
       <Title level={3}>模板市场</Title>
@@ -72,6 +83,11 @@ export default function Templates() {
                   <Button size="small" onClick={() => handleFork(template.id)}>
                     复制
                   </Button>
+                  {!template.is_builtin ? (
+                    <Button size="small" danger onClick={() => handleDelete(template.id)}>
+                      删除
+                    </Button>
+                  ) : null}
                 </Space>
               </Card>
             </Col>
