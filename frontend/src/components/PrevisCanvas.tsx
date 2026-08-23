@@ -85,6 +85,8 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
   const clockRef = useRef<THREE.Clock>(new THREE.Clock());
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recordingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const recordingCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const cameraPathLineRef = useRef<THREE.Line | null>(null);
   const [isRecording, setIsRecording] = useState(false);
 
@@ -177,6 +179,10 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       cameraRef.position = [camera.position.x, camera.position.y, camera.position.z];
       cameraRef.target = [controls.target.x, controls.target.y, controls.target.z];
       renderer.render(scene, camera);
+      // 将 WebGL 画布逐帧绘制到 2D 录制画布，规避部分浏览器 captureStream 抓不到 WebGL 帧的问题
+      if (recordingCtxRef.current && recordingCanvasRef.current) {
+        recordingCtxRef.current.drawImage(renderer.domElement, 0, 0);
+      }
     };
     animate();
 
@@ -324,7 +330,20 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
     }
 
     try {
-      const stream = renderer.domElement.captureStream(30);
+      // 使用 2D 画布中转，规避 WebGL captureStream 在某些浏览器录不到帧的问题
+      const recordingCanvas = document.createElement("canvas");
+      recordingCanvas.width = renderer.domElement.width;
+      recordingCanvas.height = renderer.domElement.height;
+      const recordingCtx = recordingCanvas.getContext("2d");
+      if (!recordingCtx) {
+        message.error("无法创建录制画布");
+        return;
+      }
+      recordingCtx.drawImage(renderer.domElement, 0, 0);
+      recordingCanvasRef.current = recordingCanvas;
+      recordingCtxRef.current = recordingCtx;
+
+      const stream = recordingCanvas.captureStream(30);
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
         ? "video/webm;codecs=vp8"
         : MediaRecorder.isTypeSupported("video/webm")
@@ -336,6 +355,8 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onstop = () => {
+        recordingCanvasRef.current = null;
+        recordingCtxRef.current = null;
         const blob = new Blob(chunksRef.current, { type: mimeType });
         if (blob.size === 0) {
           message.error("录制失败：生成的视频为空");
@@ -369,6 +390,8 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       setIsRecording(true);
     } catch (error) {
       console.error("白模录制失败", error);
+      recordingCanvasRef.current = null;
+      recordingCtxRef.current = null;
       message.error("白模视频录制失败，请查看浏览器控制台");
       setIsRecording(false);
     }
