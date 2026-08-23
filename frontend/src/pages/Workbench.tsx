@@ -55,6 +55,7 @@ export default function Workbench() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [voiceId, setVoiceId] = useState<string | undefined>(undefined);
   const [withSubtitle, setWithSubtitle] = useState(true);
+  const [speechText, setSpeechText] = useState("");
   const [characters, setCharacters] = useState<{ id: number; name: string }[]>([]);
   const [characterMappings, setCharacterMappings] = useState<Record<string, number | undefined>>({});
   const objects = usePrevisStore((state) => state.objects);
@@ -281,6 +282,7 @@ export default function Workbench() {
         character_mappings: characterMappingsPayload.length > 0 ? characterMappingsPayload : null,
         voice_id: voiceId,
         with_subtitle: withSubtitle,
+        speech_text: speechText.trim() || null,
       });
       message.success(`AI 生成任务已提交，任务 ID：${response.data.id}`);
     } catch (error) {
@@ -315,6 +317,7 @@ export default function Workbench() {
         character_mappings: characterMappingsPayload.length > 0 ? characterMappingsPayload : null,
         voice_id: voiceId,
         with_subtitle: withSubtitle,
+        speech_text: speechText.trim() || null,
       });
       message.success(`已提交 ${response.data.count} 个批量任务，可到任务中心查看`);
     } catch (error) {
@@ -667,6 +670,12 @@ export default function Workbench() {
             <Divider style={{ margin: "16px 0" }} />
             <Text strong>生成操作</Text>
             <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>
+              <Input.TextArea
+                rows={2}
+                placeholder="台词/配音文本（留空则自动提取文案中的引号内容）"
+                value={speechText}
+                onChange={(event) => setSpeechText(event.target.value)}
+              />
               <Space.Compact block>
                 <Select
                   allowClear

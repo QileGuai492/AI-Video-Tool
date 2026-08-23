@@ -4,6 +4,7 @@
 优化提示词 → 首帧 → 视频片段 → 音频 → 字幕 → 后处理 → 质量检查 → 完成。
 """
 
+import re
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -37,6 +38,16 @@ from app.storage import storage
 
 # 单个长视频任务内并行生成短视频片段的最大并发数
 MAX_PARALLEL_SEGMENTS = 4
+
+
+def _resolve_speech_text(task: VideoTask) -> str:
+    """确定配音/字幕文本：优先显式台词，其次提取引号内对白，最后用提示词。"""
+    if task.speech_text and task.speech_text.strip():
+        return task.speech_text.strip()
+    match = re.search(r"[“\"]([^”\"]+)[”\"]", task.prompt)
+    if match:
+        return match.group(1).strip()
+    return task.optimized_prompt or task.prompt
 
 
 def _infer_voice(text: str) -> str:
@@ -289,6 +300,22 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                     continue
                 reference_image_urls.append(character.reference_image_url)
                 mapping_rules[str(object_id)] = f"@图片{len(reference_image_urls)}的{character.name}"
+        layout_text = ""
+        scene = task.previs_scene_json or {}
+        if scene.get("objects"):
+            layout_parts = []
+            for obj in scene.get("objects", []):
+                position = obj.get("position") or [0, 0, 0]
+                try:
+                    x = float(position[0])
+                except (TypeError, ValueError):
+                    x = 0
+                side = "左侧" if x < -0.5 else "右侧" if x > 0.5 else "中间"
+                layout_parts.append(f"{obj.get('name') or obj.get('id')}在{side}")
+            if layout_parts:
+                layout_text = (
+                    "空间布局：" + "；".join(layout_parts) + "；保持左右方向不变，不要镜像翻转"
+                )
 
         def generate_segment(index: int) -> tuple[int, str, str]:
             frame_url = state.get("first_frame_url")
@@ -298,6 +325,8 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                 shot,
                 mapping_rules=mapping_rules,
             )
+            if layout_text:
+                segment_prompt = f"{segment_prompt}；{layout_text}"
             request = VideoGenerationRequest(
                 prompt=segment_prompt,
                 first_frame_url=frame_url,
@@ -355,12 +384,13 @@ def generate_audio(state: GenerationState) -> GenerationState:
         if task is None:
             return {**state, "error": "任务不存在"}
         try:
+            speech_text = _resolve_speech_text(task)
             track = generate_tts_audio(
                 db=db,
                 user_id=task.user_id,
                 task_id=task.id,
-                text=state.get("optimized_prompt") or task.prompt,
-                voice_id=task.voice_id or _infer_voice(state.get("optimized_prompt") or task.prompt),
+                text=speech_text,
+                voice_id=task.voice_id or _infer_voice(speech_text),
             )
             task.audio_url = track.source_url
             db.commit()
@@ -383,7 +413,7 @@ def generate_subtitle_node(state: GenerationState) -> GenerationState:
         if not task.with_subtitle:
             return state
         try:
-            subtitle_url, _ = generate_subtitle(state.get("optimized_prompt") or task.prompt)
+            subtitle_url, _ = generate_subtitle(_resolve_speech_text(task))
             task.subtitle_url = subtitle_url
             db.commit()
             return {**state, "subtitle_url": subtitle_url}

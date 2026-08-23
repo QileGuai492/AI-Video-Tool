@@ -14,6 +14,7 @@ class GenerateVideoRequest(BaseModel):
     character_mappings: list[dict] | None = None
     voice_id: str | None = None
     with_subtitle: bool = True
+    speech_text: str | None = None
     duration: int = Field(default=60, ge=5, le=120)
     aspect_ratio: str = Field(default="16:9", pattern="^(16:9|9:16|1:1)$")
     quality: str = Field(default="standard", pattern="^(fast|standard|high)$")
@@ -36,6 +37,7 @@ class GenerateBatchRequest(BaseModel):
     character_mappings: list[dict] | None = None
     voice_id: str | None = None
     with_subtitle: bool = True
+    speech_text: str | None = None
     duration: int = Field(default=60, ge=5, le=120)
     aspect_ratio: str = Field(default="16:9", pattern="^(16:9|9:16|1:1)$")
     quality: str = Field(default="standard", pattern="^(fast|standard|high)$")

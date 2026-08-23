@@ -64,6 +64,7 @@ def submit_batch_tasks(
             character_mappings=payload.character_mappings,
             voice_id=payload.voice_id,
             with_subtitle=payload.with_subtitle,
+            speech_text=payload.speech_text,
             duration=payload.duration,
             aspect_ratio=payload.aspect_ratio,
             quality=payload.quality,

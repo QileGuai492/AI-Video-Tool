@@ -85,6 +85,7 @@ class VideoTask(Base):
     character_mappings: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     voice_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     with_subtitle: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    speech_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     optimized_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False, index=True)

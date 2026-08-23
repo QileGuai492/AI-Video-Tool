@@ -6,6 +6,7 @@
 """
 
 import logging
+import re
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -73,6 +74,15 @@ class SimpleTaskOrchestrator:
             return "female_01"
         return "female_01"
 
+    def _resolve_speech_text(self, task: VideoTask) -> str:
+        """确定配音/字幕文本：优先显式台词，其次提取引号内对白，最后用提示词。"""
+        if task.speech_text and task.speech_text.strip():
+            return task.speech_text.strip()
+        match = re.search(r"[“\"]([^”\"]+)[”\"]", task.prompt)
+        if match:
+            return match.group(1).strip()
+        return task.optimized_prompt or task.prompt
+
     def run(self, task_id: int) -> None:
         """执行完整生成流水线。"""
         db = SessionLocal()
@@ -127,6 +137,22 @@ class SimpleTaskOrchestrator:
                         continue
                     reference_image_urls.append(character.reference_image_url)
                     mapping_rules[str(object_id)] = f"@图片{len(reference_image_urls)}的{character.name}"
+            layout_text = ""
+            scene = task.previs_scene_json or {}
+            if scene.get("objects"):
+                layout_parts = []
+                for obj in scene.get("objects", []):
+                    position = obj.get("position") or [0, 0, 0]
+                    try:
+                        x = float(position[0])
+                    except (TypeError, ValueError):
+                        x = 0
+                    side = "左侧" if x < -0.5 else "右侧" if x > 0.5 else "中间"
+                    layout_parts.append(f"{obj.get('name') or obj.get('id')}在{side}")
+                if layout_parts:
+                    layout_text = (
+                        "空间布局：" + "；".join(layout_parts) + "；保持左右方向不变，不要镜像翻转"
+                    )
             previs_frames: list[str] = []
             first_frame_url: str | None = None
 
@@ -204,6 +230,8 @@ class SimpleTaskOrchestrator:
                     shot,
                     mapping_rules=mapping_rules,
                 )
+                if layout_text:
+                    segment_prompt = f"{segment_prompt}；{layout_text}"
                 video_request = VideoGenerationRequest(
                     prompt=segment_prompt,
                     first_frame_url=frame_url,
@@ -282,13 +310,14 @@ class SimpleTaskOrchestrator:
                 final_video_url = local_paths[0].as_posix().replace("uploads/", "/uploads/")
 
             # 5. 自动生成配音与字幕（失败不阻塞主流程）
-            voice_id = task.voice_id or self._infer_voice(task.optimized_prompt or task.prompt)
+            speech_text = self._resolve_speech_text(task)
+            voice_id = task.voice_id or self._infer_voice(speech_text)
             try:
                 audio_track = generate_tts_audio(
                     db=db,
                     user_id=task.user_id,
                     task_id=task.id,
-                    text=task.optimized_prompt or task.prompt,
+                    text=speech_text,
                     voice_id=voice_id,
                 )
                 task.audio_url = audio_track.source_url
@@ -297,7 +326,7 @@ class SimpleTaskOrchestrator:
 
             if task.with_subtitle:
                 try:
-                    subtitle_url, subtitle_content = generate_subtitle(task.optimized_prompt or task.prompt)
+                    subtitle_url, subtitle_content = generate_subtitle(speech_text)
                     task.subtitle_url = subtitle_url
                     if final_video_url and final_video_url.startswith("/uploads/"):
                         tmp_dir = Path("uploads/tmp")

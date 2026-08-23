@@ -40,6 +40,7 @@ def create_video_task(db: Session, user_id: int, request: GenerateVideoRequest) 
         character_mappings=request.character_mappings,
         voice_id=request.voice_id,
         with_subtitle=request.with_subtitle,
+        speech_text=request.speech_text,
         prompt=request.prompt,
         status="pending",
         duration=request.duration,

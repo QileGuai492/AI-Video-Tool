@@ -89,7 +89,7 @@ def burn_subtitle(video_path: Path, srt_path: Path, output_path: Path) -> Path:
         "-i",
         str(video_path.resolve()),
         "-vf",
-        f"subtitles=filename={srt_path.name}",
+        f"subtitles=filename={srt_path.name}:charenc=utf-8:force_style='FontName=Noto Sans CJK SC'",
         "-map",
         "0:v:0",
         "-map",

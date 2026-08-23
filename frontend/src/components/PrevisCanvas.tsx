@@ -53,7 +53,13 @@ function createMesh(type: ObjectType): THREE.Object3D {
     leftArm.position.set(-0.42, 1.0, 0);
     const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.55, 0.18), material);
     rightArm.position.set(0.42, 1.0, 0);
-    group.add(body, head, leftLeg, rightLeg, leftArm, rightArm);
+    // 正面标记：红色小球放在人物前方（+Z），帮助区分正反面
+    const frontMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0xff4444 })
+    );
+    frontMarker.position.set(0, 1.0, 0.35);
+    group.add(body, head, leftLeg, rightLeg, leftArm, rightArm, frontMarker);
     return group;
   }
 
