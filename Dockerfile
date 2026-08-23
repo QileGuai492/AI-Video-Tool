@@ -19,6 +19,7 @@ COPY pyproject.toml README.md ./
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
+COPY scripts ./scripts
 
 # 预先安装构建依赖，避免每次构建时下载
 RUN pip install --no-cache-dir setuptools wheel

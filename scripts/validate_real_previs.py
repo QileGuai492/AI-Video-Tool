@@ -1,11 +1,15 @@
-"""真实 SiliconFlow 白模端到端验证脚本。
+"""真实 Agnes AI 白模端到端验证脚本。
 
 前置条件：
-- `.env` 中已配置 SILICONFLOW_API_KEY
-- SiliconFlow 账户有余额/权限
+- `.env` 中已配置 AGNES_API_KEY
+- PUBLIC_BASE_URL 为公网可访问地址，且能被 Agnes 访问
+- 建议在 API 容器内执行（保证 uploads 与公网 URL 指向同一存储）
 
-用法：
-    python scripts/validate_real_previs.py
+用法（容器内）：
+    docker compose exec api python /app/scripts/validate_real_previs.py
+
+说明：
+    在宿主机直接运行会因宿主机 uploads/ 与 Docker 卷不一致而失败。
 """
 
 import os
