@@ -114,8 +114,6 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
   const clockRef = useRef<THREE.Clock>(new THREE.Clock());
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const recordingCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const recordingCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const recordingTrackRef = useRef<CanvasCaptureMediaStreamTrack | null>(null);
   const cameraPathLineRef = useRef<THREE.Line | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -209,12 +207,8 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       cameraRef.position = [camera.position.x, camera.position.y, camera.position.z];
       cameraRef.target = [controls.target.x, controls.target.y, controls.target.z];
       renderer.render(scene, camera);
-      // 将 WebGL 画布逐帧绘制到 2D 录制画布，规避部分浏览器 captureStream 抓不到 WebGL 帧的问题
-      if (recordingCtxRef.current && recordingCanvasRef.current) {
-        recordingCtxRef.current.drawImage(renderer.domElement, 0, 0);
-        // 手动请求采集帧，兼容 Edge 等对 canvas 变更事件不敏感的实现
-        recordingTrackRef.current?.requestFrame();
-      }
+      // 直接采集可见 WebGL 画布；手动请求采集帧，兼容 Edge 对 canvas 变更不敏感的问题
+      recordingTrackRef.current?.requestFrame();
     };
     animate();
 
@@ -362,40 +356,18 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
     }
 
     try {
-      // 使用 2D 画布中转，规避 WebGL captureStream 在某些浏览器录不到帧的问题
-      const recordingCanvas = document.createElement("canvas");
-      recordingCanvas.width = renderer.domElement.width;
-      recordingCanvas.height = renderer.domElement.height;
-      const recordingCtx = recordingCanvas.getContext("2d");
-      if (!recordingCtx) {
-        message.error("无法创建录制画布");
-        return;
-      }
-      recordingCtx.drawImage(renderer.domElement, 0, 0);
-      // 挂到屏幕外 DOM，规避 Edge 对完全离屏 canvas 不采集帧的问题
-      recordingCanvas.style.position = "fixed";
-      recordingCanvas.style.left = "-99999px";
-      recordingCanvas.style.top = "0";
-      recordingCanvas.style.pointerEvents = "none";
-      document.body.appendChild(recordingCanvas);
-      recordingCanvasRef.current = recordingCanvas;
-      recordingCtxRef.current = recordingCtx;
-
-      // 用 0 帧率 + 手动 requestFrame()：Edge 对离屏 canvas 的自动 captureStream 可能不产出帧，
-      // 手动模式能在每次 drawImage 后强制采集一帧，兼容性更好。
-      // 若浏览器不支持 requestFrame，则回退到自动 captureStream(30)。
-      let stream = recordingCanvas.captureStream(0);
+      // 直接录制页面上可见的 WebGL 画布，避免隐藏画布不被浏览器合成导致零帧
+      // 用 0 帧率 + 手动 requestFrame() 强制送帧；若浏览器不支持则回退自动 captureStream(30)
+      let stream = renderer.domElement.captureStream(0);
       let videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
       if (!videoTrack || typeof videoTrack.requestFrame !== "function") {
         stream.getTracks().forEach((track) => track.stop());
-        stream = recordingCanvas.captureStream(30);
+        stream = renderer.domElement.captureStream(30);
         videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
       }
       if (!videoTrack) {
-        message.error("无法从录制画布获取视频轨道");
-        recordingCanvas.remove();
-        recordingCanvasRef.current = null;
-        recordingCtxRef.current = null;
+        message.error("无法从 WebGL 画布获取视频轨道");
+        stream.getTracks().forEach((track) => track.stop());
         recordingTrackRef.current = null;
         return;
       }
@@ -411,9 +383,6 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onstop = async () => {
-        recordingCanvas.remove();
-        recordingCanvasRef.current = null;
-        recordingCtxRef.current = null;
         recordingTrackRef.current = null;
         const blob = new Blob(chunksRef.current, { type: mimeType });
         if (blob.size === 0) {
@@ -445,22 +414,16 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       clockRef.current = new THREE.Clock();
       usePrevisStore.getState().setCurrentTime(0);
       usePrevisStore.getState().setIsPlaying(true);
-      // 录制前先渲染一帧，确保 canvas 上有可捕获的画面
+      // 录制前先渲染一帧，确保画布上有可捕获的画面
       if (sceneRef.current && cameraObjectRef.current) {
         renderer.render(sceneRef.current, cameraObjectRef.current);
-        if (recordingCtxRef.current && recordingCanvasRef.current) {
-          recordingCtxRef.current.drawImage(renderer.domElement, 0, 0);
-          recordingTrackRef.current?.requestFrame();
-        }
+        recordingTrackRef.current?.requestFrame();
       }
       recorder.start();
       recorderRef.current = recorder;
       setIsRecording(true);
     } catch (error) {
       console.error("白模录制失败", error);
-      recordingCanvasRef.current?.remove();
-      recordingCanvasRef.current = null;
-      recordingCtxRef.current = null;
       recordingTrackRef.current = null;
       message.error("白模视频录制失败，请查看浏览器控制台");
       setIsRecording(false);
