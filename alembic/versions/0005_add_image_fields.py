@@ -2,7 +2,7 @@
 
 from alembic import op
 
-revision = "0005_add_image_fields_to_video_tasks"
+revision = "0005_add_image_fields"
 down_revision = "0004_add_previs_models"
 branch_labels = None
 depends_on = None
