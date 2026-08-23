@@ -304,65 +304,71 @@ export default function Workbench() {
             {projects.length === 0 ? (
               <Text type="secondary">暂无项目</Text>
             ) : (
-              <List
-                size="small"
-                dataSource={projects}
-                renderItem={(project) => (
-                  <List.Item
-                    style={{ cursor: "pointer", padding: "6px 0" }}
-                    onClick={() => handleLoadProject(project)}
-                  >
-                    <Space direction="vertical" size={0}>
-                      <Text>{project.title}</Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        {project.status}
-                      </Text>
-                    </Space>
-                  </List.Item>
-                )}
-              />
+              <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                <List
+                  size="small"
+                  dataSource={projects}
+                  renderItem={(project) => (
+                    <List.Item
+                      style={{ cursor: "pointer", padding: "6px 0" }}
+                      onClick={() => handleLoadProject(project)}
+                    >
+                      <Space direction="vertical" size={0}>
+                        <Text>{project.title}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {project.status}
+                        </Text>
+                      </Space>
+                    </List.Item>
+                  )}
+                />
+              </div>
             )}
           </Card>
           <Card title="模板" size="small" style={{ marginTop: 12 }}>
             {templates.length === 0 ? (
               <Text type="secondary">暂无模板</Text>
             ) : (
-              <List
-                size="small"
-                dataSource={templates}
-                renderItem={(template) => (
-                  <List.Item
-                    style={{ cursor: "pointer", padding: "6px 0" }}
-                    onClick={() => handleUseTemplate(template)}
-                  >
-                    <Space direction="vertical" size={0}>
-                      <Text>{template.name}</Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        {template.description}
-                      </Text>
-                    </Space>
-                  </List.Item>
-                )}
-              />
+              <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                <List
+                  size="small"
+                  dataSource={templates}
+                  renderItem={(template) => (
+                    <List.Item
+                      style={{ cursor: "pointer", padding: "6px 0" }}
+                      onClick={() => handleUseTemplate(template)}
+                    >
+                      <Space direction="vertical" size={0}>
+                        <Text>{template.name}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {template.description}
+                        </Text>
+                      </Space>
+                    </List.Item>
+                  )}
+                />
+              </div>
             )}
           </Card>
           <Card title="对象" size="small" style={{ marginTop: 12 }}>
             {objects.length === 0 ? (
               <Text type="secondary">暂无对象</Text>
             ) : (
-              <List
-                size="small"
-                dataSource={objects}
-                renderItem={(obj) => (
-                  <List.Item
-                    style={{ cursor: "pointer", padding: "6px 0" }}
-                    onClick={() => selectObject(obj.id)}
-                    className={obj.id === selectedObjectId ? "ant-list-item-selected" : ""}
-                  >
-                    {obj.name}
-                  </List.Item>
-                )}
-              />
+              <div style={{ maxHeight: 180, overflowY: "auto" }}>
+                <List
+                  size="small"
+                  dataSource={objects}
+                  renderItem={(obj) => (
+                    <List.Item
+                      style={{ cursor: "pointer", padding: "6px 0" }}
+                      onClick={() => selectObject(obj.id)}
+                      className={obj.id === selectedObjectId ? "ant-list-item-selected" : ""}
+                    >
+                      {obj.name}
+                    </List.Item>
+                  )}
+                />
+              </div>
             )}
           </Card>
           <div style={{ marginTop: 12 }}>
