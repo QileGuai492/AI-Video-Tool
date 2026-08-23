@@ -62,6 +62,26 @@ export default function Tasks() {
     }
   };
 
+  const handleCancel = async (taskId: number) => {
+    try {
+      await client.post(`/generate/${taskId}/cancel`);
+      message.success(`任务 #${taskId} 已取消`);
+      load();
+    } catch {
+      message.error("取消失败，请确认任务状态");
+    }
+  };
+
+  const handleRetry = async (taskId: number) => {
+    try {
+      await client.post(`/generate/${taskId}/retry`);
+      message.success(`任务 #${taskId} 已重新提交`);
+      load();
+    } catch {
+      message.error("重试失败，请确认任务状态");
+    }
+  };
+
   return (
     <div>
       <Title level={3}>任务中心</Title>
@@ -77,6 +97,16 @@ export default function Tasks() {
             renderItem={(task) => (
               <List.Item
                 actions={[
+                  ["pending", "optimizing_prompt", "generating_first_frame", "generating_video", "generating_audio", "generating_subtitle", "post_processing", "quality_check"].includes(task.status) ? (
+                    <Button size="small" danger onClick={() => handleCancel(task.id)}>
+                      取消
+                    </Button>
+                  ) : null,
+                  task.status === "failed" ? (
+                    <Button size="small" onClick={() => handleRetry(task.id)}>
+                      重试
+                    </Button>
+                  ) : null,
                   task.video_url ? (
                     <Button size="small" onClick={() => handleDownload(task.id)}>
                       下载
