@@ -12,6 +12,9 @@ import subprocess
 import uuid
 from pathlib import Path
 
+from sqlalchemy.orm import Session
+
+from app.models import PrevisTemplate
 from app.providers.base import LLMRequest
 from app.providers.registry import registry
 from app.storage import storage
@@ -302,6 +305,91 @@ def normalize_previs_scene(scene: dict) -> dict:
         "shotDescriptions": shot_descriptions,
         "duration": duration,
     }
+
+
+BUILTIN_PREVIS_TEMPLATES = [
+    {
+        "name": "人物行走模板",
+        "description": "灰模人形从画面一侧走到另一侧，适合人物出场镜头",
+        "category": "人物",
+        "scene_json": {
+            "objects": [
+                {"id": "obj_1", "name": "灰模人形", "type": "humanoid", "position": [-2, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+                {"id": "obj_2", "name": "地面", "type": "plane", "position": [0, 0, 0], "rotation": [-1.5708, 0, 0], "scale": [5, 5, 5]},
+            ],
+            "keyframes": {
+                "obj_1": [
+                    {"time": 0, "position": [-2, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+                    {"time": 4, "position": [2, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+                ]
+            },
+            "cameraKeyframes": [
+                {"time": 0, "position": [5, 3, 5], "target": [0, 0, 0]},
+                {"time": 4, "position": [5, 3, 5], "target": [0, 0, 0]},
+            ],
+            "shotMarkers": [2, 4],
+            "shotDescriptions": {"2": {"action": "人物走入画面", "camera": "侧面跟拍"}},
+            "duration": 5,
+        },
+    },
+    {
+        "name": "产品展示模板",
+        "description": "产品居中展示，相机环绕，适合电商/产品镜头",
+        "category": "产品",
+        "scene_json": {
+            "objects": [
+                {"id": "obj_1", "name": "圆柱", "type": "cylinder", "position": [0, 0.5, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+                {"id": "obj_2", "name": "展示台", "type": "box", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [2, 0.1, 2]},
+            ],
+            "keyframes": {},
+            "cameraKeyframes": [
+                {"time": 0, "position": [4, 2, 0], "target": [0, 0.5, 0]},
+                {"time": 4, "position": [0, 2, 4], "target": [0, 0.5, 0]},
+            ],
+            "shotMarkers": [2],
+            "shotDescriptions": {"2": {"action": "产品旋转展示", "camera": "环绕"}},
+            "duration": 5,
+        },
+    },
+    {
+        "name": "双人对话模板",
+        "description": "两个灰模人形面对面，适合对话/访谈场景",
+        "category": "人物",
+        "scene_json": {
+            "objects": [
+                {"id": "obj_1", "name": "角色A", "type": "humanoid", "position": [-1.2, 0, 0], "rotation": [0, 0.5, 0], "scale": [1, 1, 1]},
+                {"id": "obj_2", "name": "角色B", "type": "humanoid", "position": [1.2, 0, 0], "rotation": [0, -0.5, 0], "scale": [1, 1, 1]},
+                {"id": "obj_3", "name": "地面", "type": "plane", "position": [0, 0, 0], "rotation": [-1.5708, 0, 0], "scale": [5, 5, 5]},
+            ],
+            "keyframes": {},
+            "cameraKeyframes": [
+                {"time": 0, "position": [0, 2, 5], "target": [0, 1, 0]},
+            ],
+            "shotMarkers": [2, 4],
+            "shotDescriptions": {"2": {"action": "角色A说话", "camera": "过肩镜头"}},
+            "duration": 5,
+        },
+    },
+]
+
+
+def seed_builtin_previs_templates(engine) -> None:
+    """幂等写入内置白模模板。"""
+    with Session(engine) as db:
+        if db.query(PrevisTemplate).filter(PrevisTemplate.is_builtin.is_(True)).first() is not None:
+            return
+        for template in BUILTIN_PREVIS_TEMPLATES:
+            db.add(
+                PrevisTemplate(
+                    user_id=None,
+                    name=template["name"],
+                    description=template["description"],
+                    scene_json=template["scene_json"],
+                    category=template["category"],
+                    is_builtin=True,
+                )
+            )
+        db.commit()
 
 
 def generate_previs_scene_from_text(prompt: str) -> dict:

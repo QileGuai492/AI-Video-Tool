@@ -19,6 +19,15 @@ interface PrevisProjectItem {
   previs_video_url: string | null;
 }
 
+interface PrevisTemplateItem {
+  id: number;
+  name: string;
+  description: string | null;
+  scene_json: SceneState;
+  category: string | null;
+  is_builtin: boolean;
+}
+
 const emptyScene: SceneState = {
   objects: [],
   keyframes: {},
@@ -35,6 +44,7 @@ export default function Workbench() {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [projects, setProjects] = useState<PrevisProjectItem[]>([]);
+  const [templates, setTemplates] = useState<PrevisTemplateItem[]>([]);
   const [editorMode, setEditorMode] = useState<"simple" | "advanced">("advanced");
   const [generatingPrevis, setGeneratingPrevis] = useState(false);
   const objects = usePrevisStore((state) => state.objects);
@@ -55,8 +65,18 @@ export default function Workbench() {
     }
   };
 
+  const loadTemplates = async () => {
+    try {
+      const response = await client.get("/previs/templates");
+      setTemplates(response.data);
+    } catch {
+      // 忽略
+    }
+  };
+
   useEffect(() => {
     loadProjects();
+    loadTemplates();
   }, []);
 
   const handleLoadProject = (project: PrevisProjectItem) => {
@@ -86,6 +106,46 @@ export default function Workbench() {
       };
     });
     return { shots };
+  };
+
+  const buildSceneCameraScript = (scene: SceneState) => {
+    const markers = [
+      0,
+      ...(scene.shotMarkers ?? []).filter((marker) => marker > 0 && marker < scene.duration),
+      scene.duration,
+    ].sort((a, b) => a - b);
+    const shots = markers.slice(0, -1).map((start, index) => {
+      const description = (scene.shotDescriptions ?? {})[start] ?? { action: "", camera: "" };
+      return {
+        start,
+        end: markers[index + 1],
+        action: description.action,
+        camera: description.camera,
+      };
+    });
+    return { shots };
+  };
+
+  const handleUseTemplate = async (template: PrevisTemplateItem) => {
+    try {
+      const scene = template.scene_json ?? emptyScene;
+      const response = await client.post("/previs/projects", {
+        title: template.name,
+        mode: "template",
+        template_id: template.id,
+        scene_json: scene,
+        camera_script: buildSceneCameraScript(scene),
+      });
+      const project = response.data;
+      setProjectId(project.id);
+      setPrevisVideoUrl(project.previs_video_url);
+      loadScene(scene);
+      await loadProjects();
+      message.success(`已从模板创建项目：${template.name}`);
+    } catch (error) {
+      console.error("使用模板失败", error);
+      message.error("使用模板失败，请检查登录状态");
+    }
   };
 
   const ensureProject = async (scene: unknown): Promise<number> => {
@@ -217,6 +277,29 @@ export default function Workbench() {
                       <Text>{project.title}</Text>
                       <Text type="secondary" style={{ fontSize: 12 }}>
                         {project.status}
+                      </Text>
+                    </Space>
+                  </List.Item>
+                )}
+              />
+            )}
+          </Card>
+          <Card title="模板" size="small" style={{ marginTop: 12 }}>
+            {templates.length === 0 ? (
+              <Text type="secondary">暂无模板</Text>
+            ) : (
+              <List
+                size="small"
+                dataSource={templates}
+                renderItem={(template) => (
+                  <List.Item
+                    style={{ cursor: "pointer", padding: "6px 0" }}
+                    onClick={() => handleUseTemplate(template)}
+                  >
+                    <Space direction="vertical" size={0}>
+                      <Text>{template.name}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {template.description}
                       </Text>
                     </Space>
                   </List.Item>
