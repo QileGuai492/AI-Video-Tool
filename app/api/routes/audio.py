@@ -43,4 +43,5 @@ def generate_audio(
         user_id=current_user.id,
         task_id=payload.task_id,
         bgm_id=payload.bgm_id,
+        tags=payload.tags,
     )

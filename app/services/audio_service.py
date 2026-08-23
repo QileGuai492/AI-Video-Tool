@@ -63,16 +63,37 @@ def _generate_simple_bgm_wav() -> bytes:
     return buffer.getvalue()
 
 
+def _bgm_matches(bgm: BgmLibrary, tags: list[str]) -> bool:
+    """判断 BGM 是否包含任一推荐标签。"""
+    raw = bgm.tags or {}
+    if isinstance(raw, dict):
+        values = []
+        for value in raw.values():
+            if isinstance(value, list):
+                values.extend(str(item) for item in value)
+            else:
+                values.append(str(value))
+    elif isinstance(raw, list):
+        values = [str(item) for item in raw]
+    else:
+        values = [str(raw)]
+    return any(tag in values for tag in tags)
+
+
 def generate_bgm_audio(
     db: Session,
     user_id: int,
     task_id: int | None,
     bgm_id: int | None = None,
+    tags: list[str] | None = None,
 ) -> AudioTrack:
     """生成 BGM 推荐并保存记录。"""
     bgm = None
     if bgm_id is not None:
         bgm = db.query(BgmLibrary).filter(BgmLibrary.id == bgm_id).first()
+    if bgm is None and tags:
+        candidates = db.query(BgmLibrary).order_by(BgmLibrary.id).all()
+        bgm = next((item for item in candidates if _bgm_matches(item, tags)), None)
     if bgm is None:
         bgm = db.query(BgmLibrary).first()
 

@@ -13,6 +13,7 @@ class AudioGenerateRequest(BaseModel):
     text: str | None = None
     voice_id: str | None = None
     bgm_id: int | None = None
+    tags: list[str] | None = None
 
 
 class AudioTrackRead(BaseModel):
