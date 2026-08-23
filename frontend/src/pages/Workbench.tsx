@@ -409,7 +409,7 @@ export default function Workbench() {
             {projects.length === 0 ? (
               <Text type="secondary">暂无项目</Text>
             ) : (
-              <div style={{ maxHeight: 220, overflowY: "auto" }}>
+              <div style={{ maxHeight: 340, overflowY: "auto" }}>
                 <List
                   size="small"
                   dataSource={projects}
@@ -447,7 +447,7 @@ export default function Workbench() {
             {templates.length === 0 ? (
               <Text type="secondary">暂无模板</Text>
             ) : (
-              <div style={{ maxHeight: 220, overflowY: "auto" }}>
+              <div style={{ maxHeight: 340, overflowY: "auto" }}>
                 <List
                   size="small"
                   dataSource={templates}
@@ -485,33 +485,6 @@ export default function Workbench() {
               </div>
             )}
           </Card>
-          <Card title="对象" size="small" style={{ marginTop: 12 }}>
-            {objects.length === 0 ? (
-              <Text type="secondary">暂无对象</Text>
-            ) : (
-              <div style={{ maxHeight: 180, overflowY: "auto" }}>
-                <List
-                  size="small"
-                  dataSource={objects}
-                  renderItem={(obj) => (
-                    <List.Item
-                      style={{ cursor: "pointer", padding: "6px 0" }}
-                      onClick={() => selectObject(obj.id)}
-                      className={obj.id === selectedObjectId ? "ant-list-item-selected" : ""}
-                    >
-                      {obj.name}
-                    </List.Item>
-                  )}
-                />
-              </div>
-            )}
-          </Card>
-          <div style={{ marginTop: 12 }}>
-            <ObjectProperties />
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <KeyframeList />
-          </div>
         </Col>
 
         {/* 中间：3D 编辑器 */}
@@ -533,6 +506,37 @@ export default function Workbench() {
             <EditorToolbar mode={editorMode} onSave={handleSave} />
             <PrevisCanvas onRecorded={handleRecorded} />
             <Timeline />
+            <Row gutter={12} style={{ marginTop: 16 }}>
+              <Col xs={24} md={10}>
+                <Card title="对象" size="small">
+                  {objects.length === 0 ? (
+                    <Text type="secondary">暂无对象</Text>
+                  ) : (
+                    <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                      <List
+                        size="small"
+                        dataSource={objects}
+                        renderItem={(obj) => (
+                          <List.Item
+                            style={{ cursor: "pointer", padding: "6px 0" }}
+                            onClick={() => selectObject(obj.id)}
+                            className={obj.id === selectedObjectId ? "ant-list-item-selected" : ""}
+                          >
+                            {obj.name}
+                          </List.Item>
+                        )}
+                      />
+                    </div>
+                  )}
+                </Card>
+              </Col>
+              <Col xs={24} md={14}>
+                <ObjectProperties />
+              </Col>
+              <Col span={24} style={{ marginTop: 12 }}>
+                <KeyframeList />
+              </Col>
+            </Row>
           </Card>
         </Col>
 
