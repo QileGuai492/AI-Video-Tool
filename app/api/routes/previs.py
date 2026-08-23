@@ -1,7 +1,10 @@
 """白模预演接口。"""
 
+import logging
 import uuid
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import or_
@@ -211,6 +214,7 @@ async def upload_previs_video(
             content = output.read_bytes()
             suffix = "mp4"
         except Exception as exc:  # noqa: BLE001
+            logger.exception("白模 WebM 转 MP4 失败")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"白模视频转 MP4 失败：{exc}",

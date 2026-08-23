@@ -189,10 +189,14 @@ export default function Workbench() {
       message.success("白模视频已上传并转 MP4");
     } catch (error) {
       console.error("白模视频上传失败", error);
+      const response = (error as { response?: { status?: number; data?: unknown } })?.response;
+      const data = response?.data;
       const detail =
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        (data as { detail?: string } | undefined)?.detail ??
+        (typeof data === "string" ? data : data ? JSON.stringify(data) : undefined) ??
+        (error as Error)?.message ??
         "请检查后端与 PUBLIC_BASE_URL 配置";
-      message.error(`白模视频上传失败：${detail}`);
+      message.error(`白模视频上传失败${response?.status ? `（${response.status}）` : ""}：${detail}`);
     }
   };
 
