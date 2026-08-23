@@ -504,15 +504,13 @@ export default function Workbench() {
             }
           >
             <EditorToolbar mode={editorMode} onSave={handleSave} />
-            <PrevisCanvas onRecorded={handleRecorded} />
-            <Timeline />
-            <Row gutter={12} style={{ marginTop: 16 }}>
+            <Row gutter={12} style={{ marginBottom: 12 }}>
               <Col xs={24} md={10}>
                 <Card title="对象" size="small">
                   {objects.length === 0 ? (
                     <Text type="secondary">暂无对象</Text>
                   ) : (
-                    <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                    <div style={{ maxHeight: 180, overflowY: "auto" }}>
                       <List
                         size="small"
                         dataSource={objects}
@@ -533,10 +531,12 @@ export default function Workbench() {
               <Col xs={24} md={14}>
                 <ObjectProperties />
               </Col>
-              <Col span={24} style={{ marginTop: 12 }}>
-                <KeyframeList />
-              </Col>
             </Row>
+            <PrevisCanvas onRecorded={handleRecorded} />
+            <Timeline />
+            <div style={{ marginTop: 12 }}>
+              <KeyframeList />
+            </div>
           </Card>
         </Col>
 
