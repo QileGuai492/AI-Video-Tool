@@ -135,20 +135,6 @@ export default function Tasks() {
                       </Tag>
                     </Space>
                   }
-                  actions={[
-                    <Button
-                      key="download"
-                      block
-                      size="small"
-                      disabled={!task.video_url}
-                      onClick={() => handleDownload(task.uid)}
-                    >
-                      下载
-                    </Button>,
-                    <Button key="delete" block size="small" danger onClick={() => handleDelete(task.uid)}>
-                      删除
-                    </Button>,
-                  ]}
                 >
                   <Paragraph ellipsis={{ rows: 2 }} style={{ minHeight: 44, marginBottom: 8 }}>
                     {task.prompt}
@@ -156,6 +142,31 @@ export default function Tasks() {
                   <Text type="secondary" style={{ fontSize: 12 }}>
                     {new Date(task.created_at).toLocaleString()}
                   </Text>
+                  <div
+                    style={{
+                      display: "flex",
+                      borderTop: "1px solid #f0f0f0",
+                      margin: "12px -12px -12px",
+                      background: "#fafafa",
+                    }}
+                  >
+                    <Button
+                      block
+                      disabled={!task.video_url}
+                      onClick={() => handleDownload(task.uid)}
+                      style={{ height: 40, borderRadius: 0 }}
+                    >
+                      下载
+                    </Button>
+                    <Button
+                      block
+                      danger
+                      onClick={() => handleDelete(task.uid)}
+                      style={{ height: 40, borderRadius: 0, borderLeft: "1px solid #f0f0f0" }}
+                    >
+                      删除
+                    </Button>
+                  </div>
                 </Card>
               </List.Item>
             )}
