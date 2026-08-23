@@ -253,8 +253,14 @@ async def upload_previs_video(
             content = output.read_bytes()
             suffix = "mp4"
         except Exception as exc:  # noqa: BLE001
+            debug_dir = Path("uploads/previs_debug")
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            debug_file = debug_dir / f"failed_{uuid.uuid4().hex}.webm"
+            debug_file.write_bytes(source.read_bytes())
             logger.exception(
-                "白模 WebM 转 MP4 失败 source_size=%s", source.stat().st_size
+                "白模 WebM 转 MP4 失败 source_size=%s debug_file=%s",
+                source.stat().st_size,
+                debug_file,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
