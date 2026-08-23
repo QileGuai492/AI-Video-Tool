@@ -12,6 +12,7 @@ from app.api.routes import (
     history,
     monitor,
     previs,
+    settings,
     subtitle,
     templates,
     upload,
@@ -30,3 +31,4 @@ api_router.include_router(subtitle.router)
 api_router.include_router(cost.router)
 api_router.include_router(monitor.router)
 api_router.include_router(previs.router)
+api_router.include_router(settings.router)
