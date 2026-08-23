@@ -437,7 +437,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
   };
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", border: "1px solid #f0f0f0", borderRadius: 8, overflow: "hidden", background: "#222" }}>
       <div ref={containerRef} style={{ width: "100%", height: 480 }} />
       <div style={{ position: "absolute", top: 8, right: 8 }}>
         {isRecording ? (

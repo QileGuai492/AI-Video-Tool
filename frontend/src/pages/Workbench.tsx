@@ -400,7 +400,7 @@ export default function Workbench() {
       <Paragraph type="secondary">自由建模 → 关键帧动画 → 白模视频 → AI 成片</Paragraph>
       <Row gutter={16}>
         {/* 左侧：项目 / 对象 / 属性 / 关键帧 */}
-        <Col span={5}>
+        <Col xs={24} lg={5}>
           <Card
             title="项目"
             size="small"
@@ -515,7 +515,7 @@ export default function Workbench() {
         </Col>
 
         {/* 中间：3D 编辑器 */}
-        <Col span={12}>
+        <Col xs={24} lg={12}>
           <Card
             title="白模编辑"
             size="small"
@@ -537,7 +537,7 @@ export default function Workbench() {
         </Col>
 
         {/* 右侧：AI 成片 / 镜头描述 */}
-        <Col span={7}>
+        <Col xs={24} lg={7}>
           <Card title="AI 成片" size="small">
             <Text strong>成片文案</Text>
             <Input.TextArea

@@ -14,20 +14,23 @@ function VectorInputs({
   onChange: (next: Vec3) => void;
 }) {
   return (
-    <Space>
-      <Text>{label}</Text>
+    <Space wrap style={{ width: "100%" }}>
+      <Text style={{ width: 32 }}>{label}</Text>
       <InputNumber
         size="small"
+        style={{ width: 70 }}
         value={value[0]}
         onChange={(v) => onChange([v ?? 0, value[1], value[2]])}
       />
       <InputNumber
         size="small"
+        style={{ width: 70 }}
         value={value[1]}
         onChange={(v) => onChange([value[0], v ?? 0, value[2]])}
       />
       <InputNumber
         size="small"
+        style={{ width: 70 }}
         value={value[2]}
         onChange={(v) => onChange([value[0], value[1], v ?? 0])}
       />
