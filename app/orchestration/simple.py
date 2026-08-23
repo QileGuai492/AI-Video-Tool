@@ -7,6 +7,7 @@
 
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 from pathlib import Path
 
@@ -35,6 +36,9 @@ from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
 from app.services.video_stitcher import StitchingError, stitch_videos
 from app.storage import storage
+
+# 单个长视频任务内并行生成短视频片段的最大并发数
+MAX_PARALLEL_SEGMENTS = 4
 
 
 class SimpleTaskOrchestrator:
@@ -143,7 +147,7 @@ class SimpleTaskOrchestrator:
             segment_urls: list[str] = []
             camera_shots = (task.camera_script or {}).get("shots", [])
 
-            for index in range(segment_count):
+            def generate_segment(index: int) -> tuple[int, str, str]:
                 frame_url = previs_frames[index % len(previs_frames)] if previs_frames else first_frame_url
                 shot = camera_shots[index] if index < len(camera_shots) else None
                 segment_prompt = build_segment_prompt(task.optimized_prompt or task.prompt, shot)
@@ -156,7 +160,6 @@ class SimpleTaskOrchestrator:
                     model=video_provider.name,
                 )
                 handle = video_provider.submit_video_task(video_request)
-                segment_url = None
 
                 if video_provider.name.startswith("mock"):
                     # Mock 场景直接使用本地占位视频
@@ -169,17 +172,29 @@ class SimpleTaskOrchestrator:
                 else:
                     # 真实场景轮询并下载视频到共享存储；失败或超时不再静默回退占位视频
                     segment_url = self._wait_for_real_video(video_provider, handle)
+                return index, segment_prompt, segment_url
 
-                segment_urls.append(segment_url)
-                segment = VideoSegment(
-                    task_id=task.id,
-                    segment_index=index,
-                    video_url=segment_url,
-                    prompt_used=segment_prompt,
-                    model_used=video_provider.name,
-                    duration=5,
+            segment_results: list[tuple[str, str] | None] = [None] * segment_count
+            with ThreadPoolExecutor(
+                max_workers=min(segment_count, MAX_PARALLEL_SEGMENTS)
+            ) as executor:
+                futures = [executor.submit(generate_segment, i) for i in range(segment_count)]
+                for future in as_completed(futures):
+                    index, segment_prompt, segment_url = future.result()
+                    segment_results[index] = (segment_prompt, segment_url)
+
+            segment_urls = [url for _, url in segment_results]
+            for index, (segment_prompt, segment_url) in enumerate(segment_results):
+                db.add(
+                    VideoSegment(
+                        task_id=task.id,
+                        segment_index=index,
+                        video_url=segment_url,
+                        prompt_used=segment_prompt,
+                        model_used=video_provider.name,
+                        duration=5,
+                    )
                 )
-                db.add(segment)
                 final_video_url = segment_url
 
             # 4. 拼接片段：优先把远程片段补下到本地，全部本地后再拼接

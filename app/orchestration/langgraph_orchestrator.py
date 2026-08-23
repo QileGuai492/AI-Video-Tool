@@ -6,6 +6,7 @@
 
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import TypedDict
 
@@ -33,6 +34,9 @@ from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
 from app.services.video_stitcher import StitchingError, stitch_videos
 from app.storage import storage
+
+# 单个长视频任务内并行生成短视频片段的最大并发数
+MAX_PARALLEL_SEGMENTS = 4
 
 
 class GenerationState(TypedDict, total=False):
@@ -242,7 +246,7 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                 )
                 reference_image_urls.extend(view.image_url for view in multi_views)
 
-        for index in range(segment_count):
+        def generate_segment(index: int) -> tuple[int, str, str]:
             frame_url = previs_frames[index % len(previs_frames)] if previs_frames else state.get("first_frame_url")
             shot = camera_shots[index] if index < len(camera_shots) else None
             segment_prompt = build_segment_prompt(state.get("optimized_prompt") or task.prompt, shot)
@@ -255,7 +259,6 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                 model=task.resolution or "720p",
             )
             handle = provider.submit_video_task(request)
-            video_url = None
 
             # Mock 场景直接使用本地占位视频，避免轮询等待
             if provider.name.startswith("mock"):
@@ -264,17 +267,29 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
             else:
                 # 轮询真实 Provider；失败或超时直接抛出，不再回退占位视频
                 video_url = _wait_for_real_video(provider, handle)
+            return index, segment_prompt, video_url
 
-            segment = VideoSegment(
-                task_id=task.id,
-                segment_index=index,
-                video_url=video_url,
-                prompt_used=segment_prompt,
-                model_used=provider.name,
-                duration=5,
+        segment_results: list[tuple[str, str] | None] = [None] * segment_count
+        with ThreadPoolExecutor(
+            max_workers=min(segment_count, MAX_PARALLEL_SEGMENTS)
+        ) as executor:
+            futures = [executor.submit(generate_segment, i) for i in range(segment_count)]
+            for future in as_completed(futures):
+                index, segment_prompt, video_url = future.result()
+                segment_results[index] = (segment_prompt, video_url)
+
+        segment_urls = [url for _, url in segment_results]
+        for index, (segment_prompt, video_url) in enumerate(segment_results):
+            db.add(
+                VideoSegment(
+                    task_id=task.id,
+                    segment_index=index,
+                    video_url=video_url,
+                    prompt_used=segment_prompt,
+                    model_used=provider.name,
+                    duration=5,
+                )
             )
-            db.add(segment)
-            segment_urls.append(video_url)
 
         db.commit()
         return {**state, "segment_urls": segment_urls}
