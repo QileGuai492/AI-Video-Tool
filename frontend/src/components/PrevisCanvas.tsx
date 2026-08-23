@@ -116,6 +116,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
   const chunksRef = useRef<Blob[]>([]);
   const recordingCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const recordingCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const recordingTrackRef = useRef<CanvasCaptureMediaStreamTrack | null>(null);
   const cameraPathLineRef = useRef<THREE.Line | null>(null);
   const [isRecording, setIsRecording] = useState(false);
 
@@ -211,6 +212,8 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       // 将 WebGL 画布逐帧绘制到 2D 录制画布，规避部分浏览器 captureStream 抓不到 WebGL 帧的问题
       if (recordingCtxRef.current && recordingCanvasRef.current) {
         recordingCtxRef.current.drawImage(renderer.domElement, 0, 0);
+        // 手动请求采集帧，兼容 Edge 等对 canvas 变更事件不敏感的实现
+        recordingTrackRef.current?.requestFrame();
       }
     };
     animate();
@@ -373,6 +376,8 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       recordingCtxRef.current = recordingCtx;
 
       const stream = recordingCanvas.captureStream(30);
+      const videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
+      recordingTrackRef.current = videoTrack ?? null;
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
         ? "video/webm;codecs=vp8"
         : MediaRecorder.isTypeSupported("video/webm")
@@ -386,6 +391,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       recorder.onstop = async () => {
         recordingCanvasRef.current = null;
         recordingCtxRef.current = null;
+        recordingTrackRef.current = null;
         const blob = new Blob(chunksRef.current, { type: mimeType });
         if (blob.size === 0) {
           message.error("录制失败：生成的视频为空");
@@ -419,6 +425,10 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       // 录制前先渲染一帧，确保 canvas 上有可捕获的画面
       if (sceneRef.current && cameraObjectRef.current) {
         renderer.render(sceneRef.current, cameraObjectRef.current);
+        if (recordingCtxRef.current && recordingCanvasRef.current) {
+          recordingCtxRef.current.drawImage(renderer.domElement, 0, 0);
+          recordingTrackRef.current?.requestFrame();
+        }
       }
       recorder.start();
       recorderRef.current = recorder;
@@ -427,6 +437,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       console.error("白模录制失败", error);
       recordingCanvasRef.current = null;
       recordingCtxRef.current = null;
+      recordingTrackRef.current = null;
       message.error("白模视频录制失败，请查看浏览器控制台");
       setIsRecording(false);
     }
