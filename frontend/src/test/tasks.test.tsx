@@ -34,6 +34,9 @@ describe("Tasks", () => {
     expect(screen.getByRole("button", { name: /取\s*消/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /重\s*试/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /下\s*载/ })).toBeInTheDocument();
+    expect(screen.getByText("排队中")).toBeInTheDocument();
+    expect(screen.getAllByText("失败").length).toBeGreaterThan(0);
+    expect(screen.getByText("已完成")).toBeInTheDocument();
   });
 
   it("点击取消会调用 cancel 接口", async () => {

@@ -26,6 +26,20 @@ const statusColor: Record<string, string> = {
   cancelled: "warning",
 };
 
+const statusText: Record<string, string> = {
+  pending: "排队中",
+  optimizing_prompt: "优化提示词",
+  generating_first_frame: "生成首帧",
+  generating_video: "生成视频",
+  generating_audio: "生成配音",
+  generating_subtitle: "生成字幕",
+  post_processing: "后期处理",
+  quality_check: "质量检查",
+  completed: "已完成",
+  failed: "失败",
+  cancelled: "已取消",
+};
+
 export default function Tasks() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -123,7 +137,9 @@ export default function Tasks() {
                     </Space>
                   }
                 />
-                <Tag color={statusColor[task.status] ?? "default"}>{task.status}</Tag>
+                <Tag color={statusColor[task.status] ?? "default"}>
+                  {statusText[task.status] ?? task.status}
+                </Tag>
               </List.Item>
             )}
           />

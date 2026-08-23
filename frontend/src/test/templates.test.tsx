@@ -35,6 +35,32 @@ describe("Templates", () => {
     expect(screen.getByText("我的模板")).toBeInTheDocument();
   });
 
+  it("模板卡片展示友好摘要而不是原始 JSON", async () => {
+    mockedGet.mockResolvedValue({
+      data: [
+        {
+          id: 1,
+          name: "知识科普模板",
+          config_json: {
+            prompt_template: "请用通俗易懂的方式讲解{topic}，配合画面建议和字幕重点。",
+            duration: 60,
+            aspect_ratio: "1:1",
+          },
+          is_builtin: true,
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+
+    render(<Templates />);
+
+    await screen.findByText("知识科普模板");
+    expect(screen.getByText(/请用通俗易懂的方式讲解\{topic\}/)).toBeInTheDocument();
+    expect(screen.getByText(/时长：60秒/)).toBeInTheDocument();
+    expect(screen.getByText(/比例：1:1/)).toBeInTheDocument();
+    expect(screen.queryByText(/prompt_template/)).not.toBeInTheDocument();
+  });
+
   it("复制模板会调用 POST /templates/{id}/fork", async () => {
     const user = userEvent.setup();
     mockedGet.mockResolvedValue({

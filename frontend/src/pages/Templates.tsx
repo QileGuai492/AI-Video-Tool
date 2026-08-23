@@ -12,6 +12,24 @@ interface TemplateItem {
   created_at: string;
 }
 
+function formatTemplateSummary(config: Record<string, unknown>): string {
+  const prompt = config.prompt_template ?? config.prompt;
+  const parts: string[] = [];
+  if (typeof prompt === "string" && prompt.trim()) {
+    parts.push(prompt.trim());
+  }
+  if (typeof config.duration === "number") {
+    parts.push(`时长：${config.duration}秒`);
+  }
+  if (typeof config.aspect_ratio === "string") {
+    parts.push(`比例：${config.aspect_ratio}`);
+  }
+  if (parts.length > 0) {
+    return parts.join(" ｜ ");
+  }
+  return JSON.stringify(config);
+}
+
 export default function Templates() {
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,7 +92,7 @@ export default function Templates() {
                 }
               >
                 <Paragraph type="secondary" ellipsis={{ rows: 3 }}>
-                  {JSON.stringify(template.config_json)}
+                  {formatTemplateSummary(template.config_json)}
                 </Paragraph>
                 <Space>
                   <Text type="secondary">
