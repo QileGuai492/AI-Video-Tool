@@ -1,6 +1,7 @@
 """Agnes Provider 单元测试。"""
 
 import httpx
+import pytest
 
 from app.providers.agnes import (
     AgnesImageProvider,
@@ -93,3 +94,22 @@ def test_agnes_video_submit_and_query(monkeypatch) -> None:
     status = provider.query_video_task(VideoTaskHandle(provider="agnes", external_task_id="task-123"))
     assert status.state == "succeeded"
     assert status.video_url == "https://agnes.example.com/video.mp4"
+
+
+def test_agnes_video_submit_error_contains_response_body(monkeypatch) -> None:
+    """Agnes 视频接口 4xx 时应把响应体带进异常，便于定位。"""
+    provider = AgnesVideoProvider()
+    provider.api_key = "test-key"
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        request = httpx.Request("POST", url)
+        response = httpx.Response(400, text='{"error":"image url invalid"}', request=request)
+        response.raise_for_status()
+        return response
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    with pytest.raises(RuntimeError, match="Agnes 视频接口返回 400"):
+        provider.submit_video_task(
+            VideoGenerationRequest(prompt="一只猫", first_frame_url="https://example.com/frame.png")
+        )

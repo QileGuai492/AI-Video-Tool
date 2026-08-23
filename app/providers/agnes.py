@@ -175,13 +175,19 @@ class AgnesVideoProvider:
         if image_url:
             payload["image"] = self._to_public_url(image_url)
 
-        response = httpx.post(
-            f"{self.base_url}/videos",
-            headers=headers,
-            json=payload,
-            timeout=60,
-        )
-        response.raise_for_status()
+        try:
+            response = httpx.post(
+                f"{self.base_url}/videos",
+                headers=headers,
+                json=payload,
+                timeout=60,
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise RuntimeError(
+                f"Agnes 视频接口返回 {exc.response.status_code}: "
+                f"{exc.response.text[:500]}"
+            ) from exc
         data = response.json()
         external_task_id = str(data.get("id") or data.get("task_id") or data.get("request_id"))
         return VideoTaskHandle(provider=self.name, external_task_id=external_task_id)
