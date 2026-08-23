@@ -3,6 +3,7 @@
 所有表结构以 docs/05-数据模型.md 为参考，当前为 Sprint 1 可运行骨架。
 """
 
+import uuid
 from datetime import datetime
 
 from sqlalchemy import (
@@ -27,6 +28,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    uid: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, default=lambda: uuid.uuid4().hex)
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -75,6 +77,7 @@ class VideoTask(Base):
     __tablename__ = "video_tasks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    uid: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, default=lambda: uuid.uuid4().hex)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     character_id: Mapped[int | None] = mapped_column(ForeignKey("characters.id"), nullable=True, index=True)
     image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)

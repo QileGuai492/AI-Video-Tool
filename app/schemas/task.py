@@ -47,6 +47,7 @@ class BatchSubmitResponse(BaseModel):
 
     batch_id: str
     task_ids: list[int]
+    task_uids: list[str]
     count: int
 
 
@@ -54,6 +55,7 @@ class VideoTaskRead(BaseModel):
     """任务基本信息响应。"""
 
     id: int
+    uid: str
     user_id: int
     prompt: str
     optimized_prompt: str | None = None
@@ -74,6 +76,7 @@ class TaskStatusResponse(BaseModel):
     """任务状态查询响应。"""
 
     task_id: int
+    task_uid: str
     status: str
     progress: float
     current_stage: str

@@ -54,15 +54,8 @@ def create_video_task(db: Session, user_id: int, request: GenerateVideoRequest) 
     return task
 
 
-def get_task_status(db: Session, task_id: int, user_id: int) -> TaskStatusResponse | None:
-    """查询任务状态；任务不存在或不属于该用户时返回 None。"""
-    task = db.query(VideoTask).filter(VideoTask.id == task_id, VideoTask.user_id == user_id).first()
-    if task is None:
-        return None
-
-    segments = db.query(VideoSegment).filter(VideoSegment.task_id == task.id).count()
-    total_segments = calculate_segment_count(task.duration or 60)
-
+def _build_task_status(task: VideoTask, segments: int, total_segments: int) -> TaskStatusResponse:
+    """根据任务构建状态响应。"""
     stage_progress = {
         "pending": 0.0,
         "optimizing_prompt": 0.1,
@@ -75,9 +68,9 @@ def get_task_status(db: Session, task_id: int, user_id: int) -> TaskStatusRespon
         "completed": 1.0,
         "failed": 1.0,
     }
-
     return TaskStatusResponse(
         task_id=task.id,
+        task_uid=task.uid,
         status=task.status,
         progress=stage_progress.get(task.status, 0.0),
         current_stage=task.status,
@@ -85,3 +78,25 @@ def get_task_status(db: Session, task_id: int, user_id: int) -> TaskStatusRespon
         segments_total=total_segments,
         estimated_cost=float(task.cost) if task.cost is not None else None,
     )
+
+
+def get_task_status(db: Session, task_id: int, user_id: int) -> TaskStatusResponse | None:
+    """按数字 ID 查询任务状态；任务不存在或不属于该用户时返回 None。"""
+    task = db.query(VideoTask).filter(VideoTask.id == task_id, VideoTask.user_id == user_id).first()
+    if task is None:
+        return None
+
+    segments = db.query(VideoSegment).filter(VideoSegment.task_id == task.id).count()
+    total_segments = calculate_segment_count(task.duration or 60)
+    return _build_task_status(task, segments, total_segments)
+
+
+def get_task_status_by_uid(db: Session, task_uid: str, user_id: int) -> TaskStatusResponse | None:
+    """按公开 UID 查询任务状态；任务不存在或不属于该用户时返回 None。"""
+    task = db.query(VideoTask).filter(VideoTask.uid == task_uid, VideoTask.user_id == user_id).first()
+    if task is None:
+        return None
+
+    segments = db.query(VideoSegment).filter(VideoSegment.task_id == task.id).count()
+    total_segments = calculate_segment_count(task.duration or 60)
+    return _build_task_status(task, segments, total_segments)

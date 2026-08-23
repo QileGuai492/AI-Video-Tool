@@ -24,11 +24,11 @@ def test_submit_and_query_task(client, auth_headers) -> None:
     assert task["status"] in {"pending", "completed"}
 
     status_response = client.get(
-        f"/api/v1/generate/status/{task['id']}",
+        f"/api/v1/generate/status/{task['uid']}",
         headers=auth_headers,
     )
     assert status_response.status_code == 200
-    assert status_response.json()["task_id"] == task["id"]
+    assert status_response.json()["task_uid"] == task["uid"]
 
 
 def test_download_completed_video(client, auth_headers) -> None:
@@ -44,10 +44,10 @@ def test_download_completed_video(client, auth_headers) -> None:
         },
     )
     assert submit_response.status_code == 200
-    task_id = submit_response.json()["id"]
+    task_uid = submit_response.json()["uid"]
 
     download_response = client.get(
-        f"/api/v1/generate/{task_id}/download",
+        f"/api/v1/generate/{task_uid}/download",
         headers=auth_headers,
     )
     # Mock 任务会保存占位视频到本地，因此应返回文件
@@ -102,6 +102,7 @@ def test_submit_batch_tasks(client, auth_headers) -> None:
     body = response.json()
     assert body["count"] == 3
     assert len(body["task_ids"]) == 3
+    assert len(body["task_uids"]) == 3
     assert body["batch_id"]
 
 
@@ -118,11 +119,43 @@ def test_retry_cancelled_task(client, auth_headers, db_session) -> None:
     db_session.refresh(task)
 
     response = client.post(
-        f"/api/v1/generate/{task.id}/retry",
+        f"/api/v1/generate/{task.uid}/retry",
         headers=auth_headers,
     )
     assert response.status_code == 200
     assert response.json()["status"] == "pending"
+
+
+def test_task_uid_cross_user_isolated(client, auth_headers, db_session) -> None:
+    """其他用户不能通过任务 UID 访问不属于自己的任务。"""
+    user = db_session.query(User).filter_by(username="test_user").first()
+    task = VideoTask(
+        user_id=user.id,
+        prompt="私有任务",
+        status="pending",
+    )
+    db_session.add(task)
+    db_session.commit()
+    db_session.refresh(task)
+
+    register_response = client.post(
+        "/api/v1/auth/register",
+        json={"username": "other_user", "password": "secret123"},
+    )
+    assert register_response.status_code == 200
+    other_headers = {"Authorization": f"Bearer {register_response.json()['access_token']}"}
+
+    status_response = client.get(
+        f"/api/v1/generate/status/{task.uid}",
+        headers=other_headers,
+    )
+    assert status_response.status_code == 404
+
+    cancel_response = client.post(
+        f"/api/v1/generate/{task.uid}/cancel",
+        headers=other_headers,
+    )
+    assert cancel_response.status_code == 404
 
 
 def test_submit_task_with_reference_images(client, auth_headers, db_session) -> None:

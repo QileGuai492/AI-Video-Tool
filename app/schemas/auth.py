@@ -32,6 +32,7 @@ class UserRead(BaseModel):
     """当前用户信息。"""
 
     id: int
+    uid: str
     username: str
     email: str | None = None
     created_at: datetime

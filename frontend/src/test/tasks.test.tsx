@@ -22,9 +22,9 @@ describe("Tasks", () => {
   it("根据状态显示取消/重试/下载按钮", async () => {
     mockedGet.mockResolvedValue({
       data: [
-        { id: 1, prompt: "进行中", status: "pending", video_url: null, created_at: "2026-01-01T00:00:00Z" },
-        { id: 2, prompt: "失败", status: "failed", video_url: null, created_at: "2026-01-01T00:00:00Z" },
-        { id: 3, prompt: "完成", status: "completed", video_url: "/uploads/v.mp4", created_at: "2026-01-01T00:00:00Z" },
+        { id: 1, uid: "task-uid-1", prompt: "进行中", status: "pending", video_url: null, created_at: "2026-01-01T00:00:00Z" },
+        { id: 2, uid: "task-uid-2", prompt: "失败", status: "failed", video_url: null, created_at: "2026-01-01T00:00:00Z" },
+        { id: 3, uid: "task-uid-3", prompt: "完成", status: "completed", video_url: "/uploads/v.mp4", created_at: "2026-01-01T00:00:00Z" },
       ],
     });
 
@@ -54,7 +54,7 @@ describe("Tasks", () => {
   it("点击取消会调用 cancel 接口", async () => {
     const user = userEvent.setup();
     mockedGet.mockResolvedValue({
-      data: [{ id: 1, prompt: "进行中", status: "pending", video_url: null, created_at: "2026-01-01T00:00:00Z" }],
+      data: [{ id: 1, uid: "task-uid-1", prompt: "进行中", status: "pending", video_url: null, created_at: "2026-01-01T00:00:00Z" }],
     });
     mockedPost.mockResolvedValue({});
 
@@ -62,13 +62,13 @@ describe("Tasks", () => {
     await screen.findByText("任务 #1");
     await user.click(screen.getByRole("button", { name: /取\s*消/ }));
 
-    expect(mockedPost).toHaveBeenCalledWith("/generate/1/cancel");
+    expect(mockedPost).toHaveBeenCalledWith("/generate/task-uid-1/cancel");
   });
 
   it("点击重试会调用 retry 接口", async () => {
     const user = userEvent.setup();
     mockedGet.mockResolvedValue({
-      data: [{ id: 2, prompt: "失败", status: "failed", video_url: null, created_at: "2026-01-01T00:00:00Z" }],
+      data: [{ id: 2, uid: "task-uid-2", prompt: "失败", status: "failed", video_url: null, created_at: "2026-01-01T00:00:00Z" }],
     });
     mockedPost.mockResolvedValue({});
 
@@ -76,13 +76,13 @@ describe("Tasks", () => {
     await screen.findByText("任务 #2");
     await user.click(screen.getByRole("button", { name: /重\s*试/ }));
 
-    expect(mockedPost).toHaveBeenCalledWith("/generate/2/retry");
+    expect(mockedPost).toHaveBeenCalledWith("/generate/task-uid-2/retry");
   });
 
   it("已取消任务显示重试按钮并调用 retry 接口", async () => {
     const user = userEvent.setup();
     mockedGet.mockResolvedValue({
-      data: [{ id: 4, prompt: "已取消", status: "cancelled", video_url: null, created_at: "2026-01-01T00:00:00Z" }],
+      data: [{ id: 4, uid: "task-uid-4", prompt: "已取消", status: "cancelled", video_url: null, created_at: "2026-01-01T00:00:00Z" }],
     });
     mockedPost.mockResolvedValue({});
 
@@ -91,6 +91,6 @@ describe("Tasks", () => {
     expect(screen.getByRole("button", { name: /重\s*试/ })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /重\s*试/ }));
 
-    expect(mockedPost).toHaveBeenCalledWith("/generate/4/retry");
+    expect(mockedPost).toHaveBeenCalledWith("/generate/task-uid-4/retry");
   });
 });

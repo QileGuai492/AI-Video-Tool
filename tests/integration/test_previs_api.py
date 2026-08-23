@@ -132,11 +132,11 @@ def test_generate_task_with_previs_video(client, auth_headers) -> None:
         },
     )
     assert response.status_code == 200
-    task_id = response.json()["id"]
+    task_uid = response.json()["uid"]
 
     status = None
     for _ in range(20):
-        status = client.get(f"/api/v1/generate/status/{task_id}", headers=auth_headers)
+        status = client.get(f"/api/v1/generate/status/{task_uid}", headers=auth_headers)
         if status.status_code == 200 and status.json()["status"] in {"completed", "failed", "cancelled"}:
             break
         time.sleep(0.5)

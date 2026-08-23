@@ -6,6 +6,7 @@ const { Title, Text } = Typography;
 
 interface TaskItem {
   id: number;
+  uid: string;
   prompt: string;
   status: string;
   video_url: string | null;
@@ -63,13 +64,13 @@ export default function Tasks() {
     return () => window.clearInterval(timer);
   }, [load]);
 
-  const handleDownload = async (taskId: number) => {
+  const handleDownload = async (taskUid: string) => {
     try {
-      const response = await client.get(`/generate/${taskId}/download`, { responseType: "blob" });
+      const response = await client.get(`/generate/${taskUid}/download`, { responseType: "blob" });
       const url = URL.createObjectURL(response.data);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `task_${taskId}.mp4`;
+      a.download = `task_${taskUid.slice(0, 8)}.mp4`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -77,20 +78,20 @@ export default function Tasks() {
     }
   };
 
-  const handleCancel = async (taskId: number) => {
+  const handleCancel = async (taskUid: string) => {
     try {
-      await client.post(`/generate/${taskId}/cancel`);
-      message.success(`任务 #${taskId} 已取消`);
+      await client.post(`/generate/${taskUid}/cancel`);
+      message.success("任务已取消");
       load();
     } catch {
       message.error("取消失败，请确认任务状态");
     }
   };
 
-  const handleRetry = async (taskId: number) => {
+  const handleRetry = async (taskUid: string) => {
     try {
-      await client.post(`/generate/${taskId}/retry`);
-      message.success(`任务 #${taskId} 已重新提交`);
+      await client.post(`/generate/${taskUid}/retry`);
+      message.success("任务已重新提交");
       load();
     } catch {
       message.error("重试失败，请确认任务状态");
@@ -134,17 +135,17 @@ export default function Tasks() {
               <List.Item
                 actions={[
                   ["pending", "optimizing_prompt", "generating_first_frame", "generating_video", "generating_audio", "generating_subtitle", "post_processing", "quality_check"].includes(task.status) ? (
-                    <Button size="small" danger onClick={() => handleCancel(task.id)}>
+                    <Button size="small" danger onClick={() => handleCancel(task.uid)}>
                       取消
                     </Button>
                   ) : null,
                   ["failed", "cancelled"].includes(task.status) ? (
-                    <Button size="small" onClick={() => handleRetry(task.id)}>
+                    <Button size="small" onClick={() => handleRetry(task.uid)}>
                       重试
                     </Button>
                   ) : null,
                   task.video_url ? (
-                    <Button size="small" onClick={() => handleDownload(task.id)}>
+                    <Button size="small" onClick={() => handleDownload(task.uid)}>
                       下载
                     </Button>
                   ) : null,

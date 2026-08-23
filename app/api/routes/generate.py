@@ -17,7 +17,7 @@ from app.schemas.task import (
     TaskStatusResponse,
     VideoTaskRead,
 )
-from app.services.task_service import create_video_task, get_task_status
+from app.services.task_service import create_video_task, get_task_status_by_uid
 from app.tasks.video_tasks import process_video_task
 
 router = APIRouter(prefix="/generate", tags=["视频生成"])
@@ -46,6 +46,7 @@ def submit_batch_tasks(
 ) -> BatchSubmitResponse:
     """批量提交多个视频生成任务。"""
     task_ids: list[int] = []
+    task_uids: list[str] = []
     for _ in range(payload.count):
         single = GenerateVideoRequest(
             prompt=payload.prompt,
@@ -65,36 +66,38 @@ def submit_batch_tasks(
         task = create_video_task(db=db, user_id=current_user.id, request=single)
         process_video_task.delay(task.id)
         task_ids.append(task.id)
+        task_uids.append(task.uid)
 
     return BatchSubmitResponse(
         batch_id=uuid.uuid4().hex,
         task_ids=task_ids,
+        task_uids=task_uids,
         count=len(task_ids),
     )
 
 
-@router.get("/status/{task_id}", response_model=TaskStatusResponse)
+@router.get("/status/{task_uid}", response_model=TaskStatusResponse)
 def query_task_status(
-    task_id: int,
+    task_uid: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TaskStatusResponse:
-    """查询任务状态。"""
-    result = get_task_status(db=db, task_id=task_id, user_id=current_user.id)
+    """查询任务状态（使用公开任务 UID）。"""
+    result = get_task_status_by_uid(db=db, task_uid=task_uid, user_id=current_user.id)
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
     return result
 
 
-@router.get("/{task_id}/download")
+@router.get("/{task_uid}/download")
 def download_video(
-    task_id: int,
+    task_uid: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """下载已生成视频。"""
+    """下载已生成视频（使用公开任务 UID）。"""
     task = db.query(VideoTask).filter(
-        VideoTask.id == task_id,
+        VideoTask.uid == task_uid,
         VideoTask.user_id == current_user.id,
     ).first()
     if task is None:
@@ -121,15 +124,15 @@ def download_video(
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="视频文件不可用")
 
 
-@router.post("/{task_id}/cancel", response_model=VideoTaskRead)
+@router.post("/{task_uid}/cancel", response_model=VideoTaskRead)
 def cancel_task(
-    task_id: int,
+    task_uid: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> VideoTask:
     """取消任务（当前为简单状态标记，后续补充 Celery revoke）。"""
     task = db.query(VideoTask).filter(
-        VideoTask.id == task_id,
+        VideoTask.uid == task_uid,
         VideoTask.user_id == current_user.id,
     ).first()
     if task is None:
@@ -142,15 +145,15 @@ def cancel_task(
     return task
 
 
-@router.post("/{task_id}/retry", response_model=VideoTaskRead)
+@router.post("/{task_uid}/retry", response_model=VideoTaskRead)
 def retry_task(
-    task_id: int,
+    task_uid: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> VideoTask:
     """重试失败或已取消任务。"""
     task = db.query(VideoTask).filter(
-        VideoTask.id == task_id,
+        VideoTask.uid == task_uid,
         VideoTask.user_id == current_user.id,
     ).first()
     if task is None:
