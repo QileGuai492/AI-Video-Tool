@@ -33,6 +33,11 @@ class GenerateBatchRequest(BaseModel):
     quality: str = Field(default="standard", pattern="^(fast|standard|high)$")
     model: str | None = None
     character_id: int | None = None
+    previs_video_url: str | None = None
+    previs_type: str | None = None
+    reference_video_url: str | None = None
+    previs_project_id: int | None = None
+    camera_script: dict | None = None
 
 
 class BatchSubmitResponse(BaseModel):

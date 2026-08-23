@@ -91,6 +91,9 @@ def test_submit_batch_tasks(client, auth_headers) -> None:
             "duration": 5,
             "aspect_ratio": "16:9",
             "quality": "standard",
+            "previs_video_url": "/uploads/videos/batch_previs.mp4",
+            "previs_type": "coarse",
+            "camera_script": {"shots": [{"start": 0, "end": 5, "action": "测试", "camera": "跟拍"}]},
         },
     )
     assert response.status_code == 200

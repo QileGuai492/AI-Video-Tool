@@ -55,6 +55,11 @@ def submit_batch_tasks(
             quality=payload.quality,
             model=payload.model,
             character_id=payload.character_id,
+            previs_video_url=payload.previs_video_url,
+            previs_type=payload.previs_type,
+            reference_video_url=payload.reference_video_url,
+            previs_project_id=payload.previs_project_id,
+            camera_script=payload.camera_script,
         )
         task = create_video_task(db=db, user_id=current_user.id, request=single)
         process_video_task.delay(task.id)
