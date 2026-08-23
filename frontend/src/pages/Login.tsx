@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button, Card, Form, Input, Tabs, Typography, message } from "antd";
 import { useAuthStore } from "../stores/authStore";
 
@@ -6,22 +7,30 @@ const { Title } = Typography;
 export default function Login() {
   const login = useAuthStore((state) => state.login);
   const register = useAuthStore((state) => state.register);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [registerLoading, setRegisterLoading] = useState(false);
 
   const handleLogin = async (values: { username: string; password: string }) => {
+    setLoginLoading(true);
     try {
       await login(values.username, values.password);
       message.success("登录成功");
     } catch {
       message.error("登录失败，请检查用户名或密码");
+    } finally {
+      setLoginLoading(false);
     }
   };
 
   const handleRegister = async (values: { username: string; password: string; email?: string }) => {
+    setRegisterLoading(true);
     try {
       await register(values.username, values.password, values.email);
       message.success("注册成功");
     } catch {
       message.error("注册失败");
+    } finally {
+      setRegisterLoading(false);
     }
   };
 
@@ -44,7 +53,7 @@ export default function Login() {
                   <Form.Item name="password" label="密码" rules={[{ required: true }]}>
                     <Input.Password />
                   </Form.Item>
-                  <Button type="primary" htmlType="submit" block>
+                  <Button type="primary" htmlType="submit" block loading={loginLoading}>
                     登录
                   </Button>
                 </Form>
@@ -94,7 +103,7 @@ export default function Login() {
                   >
                     <Input />
                   </Form.Item>
-                  <Button type="primary" htmlType="submit" block>
+                  <Button type="primary" htmlType="submit" block loading={registerLoading}>
                     注册
                   </Button>
                 </Form>

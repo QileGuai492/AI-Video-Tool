@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Col, Empty, Row, Space, Tag, Typography, message } from "antd";
+import { Button, Card, Col, Empty, Input, Row, Space, Tag, Typography, message } from "antd";
 import client from "../api/client";
 
 const { Title, Paragraph, Text } = Typography;
@@ -33,6 +33,7 @@ function formatTemplateSummary(config: Record<string, unknown>): string {
 export default function Templates() {
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [keyword, setKeyword] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,19 +72,34 @@ export default function Templates() {
     }
   };
 
+  const filteredTemplates = templates.filter((template) => {
+    if (!keyword.trim()) return true;
+    const text = `${template.name} ${formatTemplateSummary(template.config_json)}`.toLowerCase();
+    return text.includes(keyword.trim().toLowerCase());
+  });
+
   return (
     <div>
       <Title level={3}>模板市场</Title>
-      <Button onClick={load} loading={loading} style={{ marginBottom: 16 }}>
-        刷新
-      </Button>
-      {templates.length === 0 ? (
+      <Space style={{ marginBottom: 16 }}>
+        <Input.Search
+          placeholder="搜索模板名称或内容"
+          allowClear
+          style={{ width: 280 }}
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
+        />
+        <Button onClick={load} loading={loading}>
+          刷新
+        </Button>
+      </Space>
+      {filteredTemplates.length === 0 ? (
         <Card>
-          <Empty description="暂无模板" />
+          <Empty description="暂无匹配模板" />
         </Card>
       ) : (
         <Row gutter={[16, 16]}>
-          {templates.map((template) => (
+          {filteredTemplates.map((template) => (
             <Col key={template.id} xs={24} sm={12} md={8}>
               <Card
                 title={template.name}

@@ -39,6 +39,18 @@ describe("Tasks", () => {
     expect(screen.getByText("已完成")).toBeInTheDocument();
   });
 
+  it("任务中心显示状态筛选标签", async () => {
+    mockedGet.mockResolvedValue({ data: [] });
+
+    render(<Tasks />);
+
+    await waitFor(() => expect(screen.getByText(/全\s*部/)).toBeInTheDocument());
+    expect(screen.getByText(/进\s*行\s*中/)).toBeInTheDocument();
+    expect(screen.getByText(/已\s*完\s*成/)).toBeInTheDocument();
+    expect(screen.getByText(/失\s*败/)).toBeInTheDocument();
+    expect(screen.getByText(/已\s*取\s*消/)).toBeInTheDocument();
+  });
+
   it("点击取消会调用 cancel 接口", async () => {
     const user = userEvent.setup();
     mockedGet.mockResolvedValue({

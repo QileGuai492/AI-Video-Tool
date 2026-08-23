@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, List, Space, Tag, Typography, message } from "antd";
+import { Button, Card, Empty, List, Space, Tabs, Tag, Typography, message } from "antd";
 import client from "../api/client";
 
 const { Title, Text } = Typography;
@@ -43,6 +43,7 @@ const statusText: Record<string, string> = {
 export default function Tasks() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +97,25 @@ export default function Tasks() {
     }
   };
 
+  const filteredTasks = tasks.filter((task) => {
+    if (filter === "all") return true;
+    if (filter === "running") {
+      return ["pending", "optimizing_prompt", "generating_first_frame", "generating_video", "generating_audio", "generating_subtitle", "post_processing", "quality_check"].includes(task.status);
+    }
+    return task.status === filter;
+  });
+
+  const tabItems = [
+    { key: "all", label: `全部 (${tasks.length})` },
+    {
+      key: "running",
+      label: `进行中 (${tasks.filter((task) => ["pending", "optimizing_prompt", "generating_first_frame", "generating_video", "generating_audio", "generating_subtitle", "post_processing", "quality_check"].includes(task.status)).length})`,
+    },
+    { key: "completed", label: `已完成 (${tasks.filter((task) => task.status === "completed").length})` },
+    { key: "failed", label: `失败 (${tasks.filter((task) => task.status === "failed").length})` },
+    { key: "cancelled", label: `已取消 (${tasks.filter((task) => task.status === "cancelled").length})` },
+  ];
+
   return (
     <div>
       <Title level={3}>任务中心</Title>
@@ -103,11 +123,13 @@ export default function Tasks() {
         刷新
       </Button>
       <Card>
-        {tasks.length === 0 ? (
-          <Text type="secondary">暂无任务</Text>
+        <Tabs activeKey={filter} onChange={setFilter} items={tabItems} />
+        {filteredTasks.length === 0 ? (
+          <Empty description="暂无任务" />
         ) : (
           <List
-            dataSource={tasks}
+            loading={loading}
+            dataSource={filteredTasks}
             renderItem={(task) => (
               <List.Item
                 actions={[
