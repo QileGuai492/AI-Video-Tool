@@ -7,6 +7,35 @@ import { cameraRef } from "../previs/cameraRef";
 import { usePrevisStore } from "../previs/store";
 import type { ObjectType, Vec3 } from "../previs/types";
 
+function validateBlobHasVideo(blob: Blob): Promise<boolean> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    const cleanup = () => {
+      URL.revokeObjectURL(url);
+      video.removeAttribute("src");
+    };
+    const timer = window.setTimeout(() => {
+      cleanup();
+      resolve(false);
+    }, 3000);
+    video.onloadedmetadata = () => {
+      const ok = video.videoWidth > 0 && Number.isFinite(video.duration) && video.duration > 0;
+      window.clearTimeout(timer);
+      cleanup();
+      resolve(ok);
+    };
+    video.onerror = () => {
+      window.clearTimeout(timer);
+      cleanup();
+      resolve(false);
+    };
+    video.src = url;
+  });
+}
+
 function createMesh(type: ObjectType): THREE.Object3D {
   if (type === "humanoid") {
     const group = new THREE.Group();
@@ -354,7 +383,7 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         recordingCanvasRef.current = null;
         recordingCtxRef.current = null;
         const blob = new Blob(chunksRef.current, { type: mimeType });
@@ -365,6 +394,12 @@ export default function PrevisCanvas({ onRecorded }: { onRecorded?: (blob: Blob)
         }
         if (blob.size < 1024) {
           message.error("录制内容为空或过短，请确认场景开始播放后再停止");
+          setIsRecording(false);
+          return;
+        }
+        const hasVideo = await validateBlobHasVideo(blob);
+        if (!hasVideo) {
+          message.error("录制文件没有有效视频帧，请检查浏览器录制/硬件加速设置");
           setIsRecording(false);
           return;
         }
