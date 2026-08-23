@@ -130,12 +130,12 @@ def _extract_first_frame(video_url: str) -> str | None:
 
 
 def _extract_score(result) -> float | None:
-    """从 LLM 响应中提取 0~10 的分数。"""
+    """从 LLM 响应正文中提取 0~10 的分数。"""
     text = result.text
     if not text and result.raw_response:
         try:
             message = result.raw_response["choices"][0]["message"]
-            text = message.get("content") or message.get("reasoning_content") or ""
+            text = message.get("content") or ""
         except (KeyError, IndexError, TypeError):
             text = ""
     matches = re.findall(r"\d+(?:\.\d+)?", text or "")
