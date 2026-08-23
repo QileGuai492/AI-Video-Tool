@@ -1,4 +1,4 @@
-import { Button, Space, Typography, message } from "antd";
+import { Button, Divider, Space, Typography, message } from "antd";
 import { useRef } from "react";
 import { cameraRef } from "../previs/cameraRef";
 import { applyCameraPreset, CAMERA_PRESET_LABELS, type CameraPreset } from "../previs/cameraPresets";
@@ -73,39 +73,77 @@ export default function EditorToolbar({
   };
 
   return (
-    <Space wrap style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 16 }}>
       {mode === "advanced" && (
-        <>
-          <Text strong>添加对象：</Text>
-          {objectTypes.map((item) => (
-            <Button key={item.type} onClick={() => addObject(item.type)}>
-              {item.label}
+        <Space wrap style={{ marginBottom: 8 }}>
+          <Text type="secondary">添加对象</Text>
+          <Space.Compact>
+            {objectTypes.map((item) => (
+              <Button key={item.type} size="small" onClick={() => addObject(item.type)}>
+                {item.label}
+              </Button>
+            ))}
+          </Space.Compact>
+          <Divider type="vertical" />
+          <Text type="secondary">编辑</Text>
+          <Space.Compact>
+            <Button
+              size="small"
+              type="primary"
+              disabled={!selectedObjectId}
+              onClick={() => selectedObjectId && addKeyframe(selectedObjectId, currentTime)}
+            >
+              记录关键帧
             </Button>
-          ))}
-          <Button
-            type="primary"
-            disabled={!selectedObjectId}
-            onClick={() => selectedObjectId && addKeyframe(selectedObjectId, currentTime)}
-          >
-            记录关键帧
-          </Button>
-          <Button disabled={!selectedObjectId} onClick={() => selectedObjectId && duplicateObject(selectedObjectId)}>
-            复制
-          </Button>
-          <Button danger disabled={!selectedObjectId} onClick={() => selectedObjectId && removeObject(selectedObjectId)}>
-            删除
-          </Button>
-          <Button onClick={handleAddCameraKeyframe}>记录相机（{cameraKeyframes.length}）</Button>
-          {CAMERA_PRESET_LABELS.map((item) => (
-            <Button key={item.value} onClick={() => handleCameraPreset(item.value)}>
-              {item.label}
+            <Button
+              size="small"
+              disabled={!selectedObjectId}
+              onClick={() => selectedObjectId && duplicateObject(selectedObjectId)}
+            >
+              复制
             </Button>
-          ))}
-        </>
+            <Button
+              size="small"
+              danger
+              disabled={!selectedObjectId}
+              onClick={() => selectedObjectId && removeObject(selectedObjectId)}
+            >
+              删除
+            </Button>
+          </Space.Compact>
+          <Divider type="vertical" />
+          <Text type="secondary">相机</Text>
+          <Space.Compact>
+            <Button size="small" onClick={handleAddCameraKeyframe}>
+              记录相机（{cameraKeyframes.length}）
+            </Button>
+            {CAMERA_PRESET_LABELS.map((item) => (
+              <Button key={item.value} size="small" onClick={() => handleCameraPreset(item.value)}>
+                {item.label}
+              </Button>
+            ))}
+          </Space.Compact>
+        </Space>
       )}
-      <Button onClick={() => setIsPlaying(!isPlaying)}>{isPlaying ? "暂停" : "播放"}</Button>
-      <Button onClick={handleExport}>导出 JSON</Button>
-      <Button onClick={() => fileInputRef.current?.click()}>导入 JSON</Button>
+      <Space wrap>
+        <Text type="secondary">控制</Text>
+        <Space.Compact>
+          <Button size="small" onClick={() => setIsPlaying(!isPlaying)}>
+            {isPlaying ? "暂停" : "播放"}
+          </Button>
+          <Button size="small" onClick={handleExport}>
+            导出 JSON
+          </Button>
+          <Button size="small" onClick={() => fileInputRef.current?.click()}>
+            导入 JSON
+          </Button>
+          {onSave && (
+            <Button size="small" type="primary" onClick={() => onSave(exportScene())}>
+              保存项目
+            </Button>
+          )}
+        </Space.Compact>
+      </Space>
       <input
         ref={fileInputRef}
         type="file"
@@ -117,7 +155,6 @@ export default function EditorToolbar({
           event.target.value = "";
         }}
       />
-      {onSave && <Button onClick={() => onSave(exportScene())}>保存项目</Button>}
-    </Space>
+    </div>
   );
 }
