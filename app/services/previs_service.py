@@ -187,6 +187,123 @@ def _parse_scene_json(text: str) -> dict:
     return data
 
 
+_ALLOWED_OBJECT_TYPES = {"box", "cylinder", "sphere", "plane", "humanoid"}
+
+
+def _normalize_vec3(value: object, default: list[float]) -> list[float]:
+    """规范化三维向量。"""
+    if not isinstance(value, list) or len(value) != 3:
+        return list(default)
+    result: list[float] = []
+    for item in value:
+        try:
+            result.append(float(item))
+        except (TypeError, ValueError):
+            return list(default)
+    return result
+
+
+def normalize_previs_scene(scene: dict) -> dict:
+    """规范化 LLM 生成的白模场景，保证前端可加载。"""
+    duration = max(1.0, float(scene.get("duration", 5) or 5))
+
+    objects: list[dict] = []
+    used_ids: set[str] = set()
+    for index, obj in enumerate(scene.get("objects", []) or []):
+        if not isinstance(obj, dict):
+            continue
+        obj_type = obj.get("type", "box")
+        if obj_type not in _ALLOWED_OBJECT_TYPES:
+            obj_type = "box"
+        obj_id = str(obj.get("id") or f"obj_{index + 1}")
+        if obj_id in used_ids:
+            obj_id = f"{obj_id}_{index + 1}"
+        used_ids.add(obj_id)
+        objects.append(
+            {
+                "id": obj_id,
+                "name": str(obj.get("name") or obj_type),
+                "type": obj_type,
+                "position": _normalize_vec3(obj.get("position"), [0, 0.5, 0]),
+                "rotation": _normalize_vec3(obj.get("rotation"), [0, 0, 0]),
+                "scale": _normalize_vec3(obj.get("scale"), [1, 1, 1]),
+            }
+        )
+
+    keyframes: dict[str, list[dict]] = {}
+    raw_keyframes = scene.get("keyframes", {}) or {}
+    if isinstance(raw_keyframes, dict):
+        for obj_id, frames in raw_keyframes.items():
+            if not isinstance(frames, list):
+                continue
+            normalized_frames = []
+            for frame in frames:
+                if not isinstance(frame, dict):
+                    continue
+                try:
+                    time = float(frame.get("time", 0))
+                except (TypeError, ValueError):
+                    continue
+                normalized_frames.append(
+                    {
+                        "time": max(0.0, min(duration, time)),
+                        "position": _normalize_vec3(frame.get("position"), [0, 0.5, 0]),
+                        "rotation": _normalize_vec3(frame.get("rotation"), [0, 0, 0]),
+                        "scale": _normalize_vec3(frame.get("scale"), [1, 1, 1]),
+                    }
+                )
+            if normalized_frames:
+                keyframes[str(obj_id)] = normalized_frames
+
+    camera_keyframes: list[dict] = []
+    for frame in scene.get("cameraKeyframes", []) or []:
+        if not isinstance(frame, dict):
+            continue
+        try:
+            time = float(frame.get("time", 0))
+        except (TypeError, ValueError):
+            continue
+        camera_keyframes.append(
+            {
+                "time": max(0.0, min(duration, time)),
+                "position": _normalize_vec3(frame.get("position"), [5, 4, 5]),
+                "target": _normalize_vec3(frame.get("target"), [0, 0, 0]),
+            }
+        )
+    if not camera_keyframes:
+        camera_keyframes = [{"time": 0, "position": [5, 4, 5], "target": [0, 0, 0]}]
+
+    shot_markers: list[float] = []
+    for marker in scene.get("shotMarkers", []) or []:
+        try:
+            value = float(marker)
+        except (TypeError, ValueError):
+            continue
+        if 0 < value < duration and value not in shot_markers:
+            shot_markers.append(value)
+    shot_markers.sort()
+
+    shot_descriptions: dict[str, dict] = {}
+    raw_descriptions = scene.get("shotDescriptions", {}) or {}
+    if isinstance(raw_descriptions, dict):
+        for key, description in raw_descriptions.items():
+            if not isinstance(description, dict):
+                continue
+            shot_descriptions[str(key)] = {
+                "action": str(description.get("action", "")),
+                "camera": str(description.get("camera", "")),
+            }
+
+    return {
+        "objects": objects,
+        "keyframes": keyframes,
+        "cameraKeyframes": camera_keyframes,
+        "shotMarkers": shot_markers,
+        "shotDescriptions": shot_descriptions,
+        "duration": duration,
+    }
+
+
 def generate_previs_scene_from_text(prompt: str) -> dict:
     """根据文案调用 LLM 生成白模场景 JSON。"""
     system_prompt = (
@@ -211,10 +328,4 @@ def generate_previs_scene_from_text(prompt: str) -> dict:
         )
     )
     scene = _parse_scene_json(result.text)
-    scene.setdefault("objects", [])
-    scene.setdefault("keyframes", {})
-    scene.setdefault("cameraKeyframes", [{"time": 0, "position": [5, 4, 5], "target": [0, 0, 0]}])
-    scene.setdefault("shotMarkers", [])
-    scene.setdefault("shotDescriptions", {})
-    scene.setdefault("duration", 5)
-    return scene
+    return normalize_previs_scene(scene)

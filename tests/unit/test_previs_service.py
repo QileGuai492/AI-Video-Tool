@@ -8,6 +8,7 @@ from app.services.previs_service import (
     build_segment_prompt,
     build_shot_prompt,
     generate_previs_scene_from_text,
+    normalize_previs_scene,
 )
 
 
@@ -77,3 +78,27 @@ def test_generate_previs_scene_from_text(monkeypatch) -> None:
     assert scene["objects"][0]["type"] == "box"
     assert scene["duration"] == 5
     assert scene["shotMarkers"] == [1, 3]
+
+
+def test_normalize_previs_scene_fixes_invalid_data() -> None:
+    """规范化应修复非法类型、重复 ID、错误向量和越界镜头。"""
+    scene = normalize_previs_scene(
+        {
+            "objects": [
+                {"id": "a", "type": "car", "position": [0, 1]},
+                {"id": "a", "type": "sphere", "position": "bad"},
+            ],
+            "keyframes": {"a": [{"time": -1, "position": [1, 2, 3]}]},
+            "cameraKeyframes": [{"time": 99, "position": [1, 2]}],
+            "shotMarkers": [-1, 3, 99, 3],
+            "shotDescriptions": {1: {"action": "走", "camera": "跟拍"}},
+            "duration": 0,
+        }
+    )
+    assert scene["duration"] == 5.0
+    assert scene["objects"][0]["type"] == "box"
+    assert scene["objects"][0]["position"] == [0, 0.5, 0]
+    assert scene["objects"][1]["id"] != scene["objects"][0]["id"]
+    assert scene["shotMarkers"] == [3.0]
+    assert scene["cameraKeyframes"][0]["time"] == 5.0
+    assert "1" in scene["shotDescriptions"]
