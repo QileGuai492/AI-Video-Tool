@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Card, Col, Input, InputNumber, List, Row, Segmented, Space, Typography, Upload, message } from "antd";
+import { Alert, Button, Card, Col, Divider, Input, InputNumber, List, Row, Segmented, Space, Typography, Upload, message } from "antd";
 import client from "../api/client";
 import EditorToolbar from "../components/EditorToolbar";
 import KeyframeList from "../components/KeyframeList";
@@ -533,32 +533,34 @@ export default function Workbench() {
         {/* 右侧：AI 成片 / 镜头描述 */}
         <Col span={7}>
           <Card title="AI 成片" size="small">
+            <Text strong>成片文案</Text>
             <Input.TextArea
               rows={4}
+              style={{ marginTop: 8 }}
               placeholder="输入成片文案，例如：一只猫在夕阳下奔跑"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
             />
-            <Space direction="vertical" style={{ width: "100%", marginTop: 12 }}>
-              <Space>
-                <Upload
-                  accept="image/*"
-                  showUploadList={false}
-                  beforeUpload={(file) => {
-                    handleUploadImage(file as File);
-                    return false;
-                  }}
-                >
-                  <Button loading={uploadingImage}>上传参考图</Button>
-                </Upload>
-                {referenceImages.length > 0 ? (
-                  <Text type="secondary">{referenceImages.length} 张参考图</Text>
-                ) : null}
-              </Space>
+            <Divider style={{ margin: "16px 0" }} />
+            <Text strong>参考素材</Text>
+            <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>
+              <Upload
+                accept="image/*"
+                showUploadList={false}
+                style={{ width: "100%" }}
+                beforeUpload={(file) => {
+                  handleUploadImage(file as File);
+                  return false;
+                }}
+              >
+                <Button block loading={uploadingImage}>
+                  {referenceImages.length > 0 ? "继续上传参考图" : "上传参考图"}
+                </Button>
+              </Upload>
               {referenceImages.length > 0 ? (
-                <Space wrap>
+                <Space wrap style={{ width: "100%" }}>
                   {referenceImages.map((url, index) => (
-                    <Space key={url} direction="vertical" size={0}>
+                    <Space key={url} direction="vertical" size={2} style={{ textAlign: "center" }}>
                       <img
                         src={url}
                         alt={`参考图${index + 1}`}
@@ -576,19 +578,10 @@ export default function Workbench() {
                   ))}
                 </Space>
               ) : null}
-              <Text type="secondary">
-                {previsVideoUrl
-                  ? "白模视频已就绪，可以提交生成"
-                  : referenceImages.length > 0
-                    ? "参考图已就绪，可以提交生成"
-                    : "请上传参考图或录制白模视频"}
-              </Text>
-              <Button block loading={generatingPrevis} onClick={handleGeneratePrevis}>
-                文字生成白模
-              </Button>
               <Upload
                 accept="video/*"
                 showUploadList={false}
+                style={{ width: "100%" }}
                 beforeUpload={(file) => {
                   handleGenerateFromVideo(file as File);
                   return false;
@@ -601,6 +594,7 @@ export default function Workbench() {
               <Upload
                 accept="video/*"
                 showUploadList={false}
+                style={{ width: "100%" }}
                 beforeUpload={(file) => {
                   handleGenerateFromVideoAdvanced(file as File);
                   return false;
@@ -610,6 +604,13 @@ export default function Workbench() {
                   高级：参考视频生成动态白模
                 </Button>
               </Upload>
+            </Space>
+            <Divider style={{ margin: "16px 0" }} />
+            <Text strong>生成操作</Text>
+            <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>
+              <Button block loading={generatingPrevis} onClick={handleGeneratePrevis}>
+                文字生成白模
+              </Button>
               <Space.Compact block>
                 <InputNumber
                   min={1}
@@ -625,6 +626,13 @@ export default function Workbench() {
               <Button type="primary" block loading={submitting} onClick={handleSubmitGenerate}>
                 提交 AI 生成
               </Button>
+              <Text type="secondary" style={{ fontSize: 12, textAlign: "center" }}>
+                {previsVideoUrl
+                  ? "白模视频已就绪，可以提交生成"
+                  : referenceImages.length > 0
+                    ? "参考图已就绪，可以提交生成"
+                    : "请上传参考图或录制白模视频"}
+              </Text>
             </Space>
           </Card>
           <Card title="镜头描述" size="small" style={{ marginTop: 12 }}>
