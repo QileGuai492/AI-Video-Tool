@@ -83,8 +83,33 @@ export default function Settings() {
           <Form.Item name="email" label="邮箱">
             <Input placeholder="请输入邮箱" />
           </Form.Item>
-          <Form.Item name="password" label="新密码（留空则不修改）">
+          <Form.Item
+            name="password"
+            label="新密码（留空则不修改）"
+            rules={[
+              { min: 8, message: "密码至少 8 位" },
+              { pattern: /^(?=.*[A-Za-z])(?=.*\d).+$/, message: "密码必须包含字母和数字" },
+            ]}
+          >
             <Input.Password placeholder="请输入新密码" />
+          </Form.Item>
+          <Form.Item
+            name="confirmPassword"
+            label="确认新密码"
+            dependencies={["password"]}
+            rules={[
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  const password = getFieldValue("password");
+                  if (!password || !value || password === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error("两次输入的密码不一致"));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="请再次输入新密码" />
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={userSaving}>
             保存用户信息

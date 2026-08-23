@@ -58,7 +58,33 @@ export default function Login() {
                   <Form.Item name="username" label="用户名" rules={[{ required: true }]}>
                     <Input />
                   </Form.Item>
-                  <Form.Item name="password" label="密码" rules={[{ required: true, min: 6 }]}>
+                  <Form.Item
+                    name="password"
+                    label="密码"
+                    rules={[
+                      { required: true, message: "请输入密码" },
+                      { min: 8, message: "密码至少 8 位" },
+                      { pattern: /^(?=.*[A-Za-z])(?=.*\d).+$/, message: "密码必须包含字母和数字" },
+                    ]}
+                  >
+                    <Input.Password />
+                  </Form.Item>
+                  <Form.Item
+                    name="confirmPassword"
+                    label="确认密码"
+                    dependencies={["password"]}
+                    rules={[
+                      { required: true, message: "请再次输入密码" },
+                      ({ getFieldValue }) => ({
+                        validator(_, value) {
+                          if (!value || getFieldValue("password") === value) {
+                            return Promise.resolve();
+                          }
+                          return Promise.reject(new Error("两次输入的密码不一致"));
+                        },
+                      }),
+                    ]}
+                  >
                     <Input.Password />
                   </Form.Item>
                   <Form.Item name="email" label="邮箱（选填）">

@@ -29,6 +29,26 @@ def test_register_duplicate_username(client) -> None:
     assert client.post("/api/v1/auth/register", json=payload).status_code == 400
 
 
+def test_register_weak_password_rejected(client) -> None:
+    """纯数字或纯字母等弱密码应注册失败。"""
+    for password in ["12345678", "abcdefgh", "123456"]:
+        response = client.post(
+            "/api/v1/auth/register",
+            json={"username": f"weak_{password}", "password": password},
+        )
+        assert response.status_code == 422
+
+
+def test_update_weak_password_rejected(client, auth_headers) -> None:
+    """修改密码时弱密码应被拒绝。"""
+    response = client.put(
+        "/api/v1/auth/me",
+        headers=auth_headers,
+        json={"password": "12345678"},
+    )
+    assert response.status_code == 422
+
+
 def test_login_wrong_password(client) -> None:
     """错误密码登录应返回 401。"""
     client.post(
