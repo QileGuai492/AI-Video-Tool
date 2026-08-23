@@ -316,7 +316,7 @@ export default function Workbench() {
         voice_id: voiceId,
         with_subtitle: withSubtitle,
       });
-      message.success(`已提交 ${response.data.count} 个批量任务`);
+      message.success(`已提交 ${response.data.count} 个批量任务，可到任务中心查看`);
     } catch (error) {
       console.error("批量生成失败", error);
       message.error("批量生成失败，请检查后端配置");
@@ -699,6 +699,9 @@ export default function Workbench() {
                   批量生成
                 </Button>
               </Space.Compact>
+              <Button block onClick={() => { window.location.href = "/tasks"; }}>
+                查看任务中心
+              </Button>
               <Button type="primary" block loading={submitting} onClick={handleSubmitGenerate}>
                 提交 AI 生成
               </Button>
