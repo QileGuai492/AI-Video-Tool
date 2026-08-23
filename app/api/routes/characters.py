@@ -86,6 +86,26 @@ def add_character_multi_view(
     return multi_view
 
 
+@router.delete("/{character_id}/multi-views/{multi_view_id}")
+def delete_character_multi_view(
+    character_id: int,
+    multi_view_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """删除角色的多角度参考图。"""
+    _get_owned_character(db, character_id, current_user.id)
+    multi_view = db.query(CharacterMultiView).filter(
+        CharacterMultiView.id == multi_view_id,
+        CharacterMultiView.character_id == character_id,
+    ).first()
+    if multi_view is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="多角度参考图不存在")
+    db.delete(multi_view)
+    db.commit()
+    return {"ok": True}
+
+
 @router.delete("/{character_id}")
 def delete_character(
     character_id: int,

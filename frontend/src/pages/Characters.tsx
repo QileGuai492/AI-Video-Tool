@@ -96,6 +96,17 @@ export default function Characters() {
     }
   };
 
+  const handleDeleteMultiView = async (characterId: number, multiViewId: number) => {
+    if (!window.confirm("确定删除该多角度参考图？")) return;
+    try {
+      await client.delete(`/characters/${characterId}/multi-views/${multiViewId}`);
+      message.success("多角度参考图已删除");
+      load();
+    } catch {
+      message.error("删除多角度参考图失败");
+    }
+  };
+
   const handleSelectMultiViewImage = (characterId: number, file: File) => {
     if (multiViewPreviews[characterId]) URL.revokeObjectURL(multiViewPreviews[characterId]);
     setMultiViewFiles((prev) => ({ ...prev, [characterId]: file }));
@@ -205,10 +216,22 @@ export default function Characters() {
                   <img
                     src={character.reference_image_url}
                     alt={character.name}
-                    style={{ width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 8 }}
+                    style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 8 }}
                   />
                 ) : (
-                  <Text type="secondary">暂无参考图</Text>
+                  <div
+                    style={{
+                      width: "100%",
+                      height: 160,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "#fafafa",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Text type="secondary">暂无参考图</Text>
+                  </div>
                 )}
                 {character.description ? (
                   <ParagraphText text={character.description} />
@@ -225,6 +248,14 @@ export default function Characters() {
                             style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }}
                           />
                           <Text type="secondary" style={{ fontSize: 12 }}>{view.view_name}</Text>
+                          <Button
+                            size="small"
+                            type="text"
+                            danger
+                            onClick={() => handleDeleteMultiView(character.id, view.id)}
+                          >
+                            删除
+                          </Button>
                         </Space>
                       ))}
                     </Space>
@@ -236,7 +267,7 @@ export default function Characters() {
                   onFinish={(values) => handleAddMultiView(character.id, values)}
                   style={{ marginTop: 12 }}
                 >
-                  <Space.Compact style={{ width: "100%" }}>
+                  <Space direction="vertical" style={{ width: "100%" }}>
                     <Form.Item name="view_name" rules={[{ required: true, message: "视角名" }]} style={{ marginBottom: 0 }}>
                       <Input placeholder="视角名，如正面" />
                     </Form.Item>
@@ -255,10 +286,10 @@ export default function Characters() {
                         </Upload>
                       </Space.Compact>
                     </Form.Item>
-                    <Button htmlType="submit" loading={multiViewSubmitting === character.id}>
+                    <Button block htmlType="submit" loading={multiViewSubmitting === character.id}>
                       添加视角
                     </Button>
-                  </Space.Compact>
+                  </Space>
                   {multiViewPreviews[character.id] ? (
                     <Space direction="vertical" size={4} style={{ marginTop: 8 }}>
                       <img
