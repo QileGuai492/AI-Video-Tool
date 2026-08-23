@@ -8,18 +8,19 @@ vi.mock("../api/client", () => ({
   default: {
     get: vi.fn(),
     post: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
 const mockedGet = vi.mocked(client.get);
-const mockedPost = vi.mocked(client.post);
+const mockedDelete = vi.mocked(client.delete);
 
 describe("Tasks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("根据状态显示取消/重试/下载按钮", async () => {
+  it("任务卡片显示下载和删除按钮", async () => {
     mockedGet.mockResolvedValue({
       data: [
         { id: 1, uid: "task-uid-1", prompt: "进行中", status: "pending", video_url: null, created_at: "2026-01-01T00:00:00Z" },
@@ -31,12 +32,8 @@ describe("Tasks", () => {
     render(<Tasks />);
 
     await waitFor(() => expect(screen.getByText("任务 #1")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: /取\s*消/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /重\s*试/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /下\s*载/ })).toBeInTheDocument();
-    expect(screen.getByText("排队中")).toBeInTheDocument();
-    expect(screen.getAllByText("失败").length).toBeGreaterThan(0);
-    expect(screen.getByText("已完成")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /下\s*载/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /删\s*除/ }).length).toBeGreaterThan(0);
   });
 
   it("任务中心显示状态筛选标签", async () => {
@@ -51,46 +48,32 @@ describe("Tasks", () => {
     expect(screen.getByText(/已\s*取\s*消/)).toBeInTheDocument();
   });
 
-  it("点击取消会调用 cancel 接口", async () => {
+  it("点击删除会调用 delete 接口", async () => {
     const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     mockedGet.mockResolvedValue({
       data: [{ id: 1, uid: "task-uid-1", prompt: "进行中", status: "pending", video_url: null, created_at: "2026-01-01T00:00:00Z" }],
     });
-    mockedPost.mockResolvedValue({});
+    mockedDelete.mockResolvedValue({});
 
     render(<Tasks />);
     await screen.findByText("任务 #1");
-    await user.click(screen.getByRole("button", { name: /取\s*消/ }));
+    await user.click(screen.getByRole("button", { name: /删\s*除/ }));
 
-    expect(mockedPost).toHaveBeenCalledWith("/generate/task-uid-1/cancel");
+    expect(mockedDelete).toHaveBeenCalledWith("/generate/task-uid-1");
+    confirmSpy.mockRestore();
   });
 
-  it("点击重试会调用 retry 接口", async () => {
+  it("点击下载会调用 download 接口", async () => {
     const user = userEvent.setup();
     mockedGet.mockResolvedValue({
-      data: [{ id: 2, uid: "task-uid-2", prompt: "失败", status: "failed", video_url: null, created_at: "2026-01-01T00:00:00Z" }],
+      data: [{ id: 3, uid: "task-uid-3", prompt: "完成", status: "completed", video_url: "/uploads/v.mp4", created_at: "2026-01-01T00:00:00Z" }],
     });
-    mockedPost.mockResolvedValue({});
 
     render(<Tasks />);
-    await screen.findByText("任务 #2");
-    await user.click(screen.getByRole("button", { name: /重\s*试/ }));
+    await screen.findByText("任务 #3");
+    await user.click(screen.getByRole("button", { name: /下\s*载/ }));
 
-    expect(mockedPost).toHaveBeenCalledWith("/generate/task-uid-2/retry");
-  });
-
-  it("已取消任务显示重试按钮并调用 retry 接口", async () => {
-    const user = userEvent.setup();
-    mockedGet.mockResolvedValue({
-      data: [{ id: 4, uid: "task-uid-4", prompt: "已取消", status: "cancelled", video_url: null, created_at: "2026-01-01T00:00:00Z" }],
-    });
-    mockedPost.mockResolvedValue({});
-
-    render(<Tasks />);
-    await screen.findByText("任务 #4");
-    expect(screen.getByRole("button", { name: /重\s*试/ })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /重\s*试/ }));
-
-    expect(mockedPost).toHaveBeenCalledWith("/generate/task-uid-4/retry");
+    expect(mockedGet).toHaveBeenCalledWith("/generate/task-uid-3/download", { responseType: "blob" });
   });
 });

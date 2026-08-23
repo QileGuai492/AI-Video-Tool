@@ -126,6 +126,23 @@ def test_retry_cancelled_task(client, auth_headers, db_session) -> None:
     assert response.json()["status"] == "pending"
 
 
+def test_delete_own_task(client, auth_headers, db_session) -> None:
+    """用户可删除自己的任务。"""
+    user = db_session.query(User).filter_by(username="test_user").first()
+    task = VideoTask(
+        user_id=user.id,
+        prompt="待删除任务",
+        status="completed",
+    )
+    db_session.add(task)
+    db_session.commit()
+    db_session.refresh(task)
+
+    response = client.delete(f"/api/v1/generate/{task.uid}", headers=auth_headers)
+    assert response.status_code == 200
+    assert db_session.query(VideoTask).filter(VideoTask.id == task.id).first() is None
+
+
 def test_task_uid_cross_user_isolated(client, auth_headers, db_session) -> None:
     """其他用户不能通过任务 UID 访问不属于自己的任务。"""
     user = db_session.query(User).filter_by(username="test_user").first()

@@ -78,23 +78,14 @@ export default function Tasks() {
     }
   };
 
-  const handleCancel = async (taskUid: string) => {
+  const handleDelete = async (taskUid: string) => {
+    if (!window.confirm("确定删除该任务？")) return;
     try {
-      await client.post(`/generate/${taskUid}/cancel`);
-      message.success("任务已取消");
+      await client.delete(`/generate/${taskUid}`);
+      message.success("任务已删除");
       load();
     } catch {
-      message.error("取消失败，请确认任务状态");
-    }
-  };
-
-  const handleRetry = async (taskUid: string) => {
-    try {
-      await client.post(`/generate/${taskUid}/retry`);
-      message.success("任务已重新提交");
-      load();
-    } catch {
-      message.error("重试失败，请确认任务状态");
+      message.error("删除失败，请确认任务状态");
     }
   };
 
@@ -145,22 +136,19 @@ export default function Tasks() {
                     </Space>
                   }
                   actions={[
-                    ["pending", "optimizing_prompt", "generating_first_frame", "generating_video", "generating_audio", "generating_subtitle", "post_processing", "quality_check"].includes(task.status) ? (
-                      <Button key="cancel" size="small" danger onClick={() => handleCancel(task.uid)}>
-                        取消
-                      </Button>
-                    ) : null,
-                    ["failed", "cancelled"].includes(task.status) ? (
-                      <Button key="retry" size="small" onClick={() => handleRetry(task.uid)}>
-                        重试
-                      </Button>
-                    ) : null,
-                    task.video_url ? (
-                      <Button key="download" size="small" onClick={() => handleDownload(task.uid)}>
-                        下载
-                      </Button>
-                    ) : null,
-                  ].filter(Boolean)}
+                    <Button
+                      key="download"
+                      block
+                      size="small"
+                      disabled={!task.video_url}
+                      onClick={() => handleDownload(task.uid)}
+                    >
+                      下载
+                    </Button>,
+                    <Button key="delete" block size="small" danger onClick={() => handleDelete(task.uid)}>
+                      删除
+                    </Button>,
+                  ]}
                 >
                   <Paragraph ellipsis={{ rows: 2 }} style={{ minHeight: 44, marginBottom: 8 }}>
                     {task.prompt}

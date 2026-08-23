@@ -9,7 +9,16 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
-from app.models import User, VideoTask
+from app.models import (
+    AudioTrack,
+    GenerationLog,
+    TaskConfigSnapshot,
+    TaskError,
+    TaskRetry,
+    User,
+    VideoSegment,
+    VideoTask,
+)
 from app.schemas.task import (
     BatchSubmitResponse,
     GenerateBatchRequest,
@@ -166,4 +175,29 @@ def retry_task(
     db.commit()
     db.refresh(task)
     process_video_task.delay(task.id)
+    return task
+
+
+@router.delete("/{task_uid}", response_model=VideoTaskRead)
+def delete_task(
+    task_uid: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> VideoTask:
+    """删除当前用户的任务及其关联数据。"""
+    task = db.query(VideoTask).filter(
+        VideoTask.uid == task_uid,
+        VideoTask.user_id == current_user.id,
+    ).first()
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+
+    db.query(VideoSegment).filter(VideoSegment.task_id == task.id).delete()
+    db.query(AudioTrack).filter(AudioTrack.task_id == task.id).delete()
+    db.query(TaskRetry).filter(TaskRetry.task_id == task.id).delete()
+    db.query(TaskError).filter(TaskError.task_id == task.id).delete()
+    db.query(TaskConfigSnapshot).filter(TaskConfigSnapshot.task_id == task.id).delete()
+    db.query(GenerationLog).filter(GenerationLog.task_id == task.id).delete()
+    db.delete(task)
+    db.commit()
     return task
