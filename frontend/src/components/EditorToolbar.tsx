@@ -7,7 +7,13 @@ import type { ObjectType, SceneState } from "../previs/types";
 
 const { Text } = Typography;
 
-export default function EditorToolbar({ onSave }: { onSave?: (scene: unknown) => void }) {
+export default function EditorToolbar({
+  onSave,
+  mode = "advanced",
+}: {
+  onSave?: (scene: unknown) => void;
+  mode?: "simple" | "advanced";
+}) {
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const currentTime = usePrevisStore((state) => state.currentTime);
   const isPlaying = usePrevisStore((state) => state.isPlaying);
@@ -68,31 +74,35 @@ export default function EditorToolbar({ onSave }: { onSave?: (scene: unknown) =>
 
   return (
     <Space wrap style={{ marginBottom: 16 }}>
-      <Text strong>添加对象：</Text>
-      {objectTypes.map((item) => (
-        <Button key={item.type} onClick={() => addObject(item.type)}>
-          {item.label}
-        </Button>
-      ))}
-      <Button
-        type="primary"
-        disabled={!selectedObjectId}
-        onClick={() => selectedObjectId && addKeyframe(selectedObjectId, currentTime)}
-      >
-        记录关键帧
-      </Button>
-      <Button disabled={!selectedObjectId} onClick={() => selectedObjectId && duplicateObject(selectedObjectId)}>
-        复制
-      </Button>
-      <Button danger disabled={!selectedObjectId} onClick={() => selectedObjectId && removeObject(selectedObjectId)}>
-        删除
-      </Button>
-      <Button onClick={handleAddCameraKeyframe}>记录相机（{cameraKeyframes.length}）</Button>
-      {CAMERA_PRESET_LABELS.map((item) => (
-        <Button key={item.value} onClick={() => handleCameraPreset(item.value)}>
-          {item.label}
-        </Button>
-      ))}
+      {mode === "advanced" && (
+        <>
+          <Text strong>添加对象：</Text>
+          {objectTypes.map((item) => (
+            <Button key={item.type} onClick={() => addObject(item.type)}>
+              {item.label}
+            </Button>
+          ))}
+          <Button
+            type="primary"
+            disabled={!selectedObjectId}
+            onClick={() => selectedObjectId && addKeyframe(selectedObjectId, currentTime)}
+          >
+            记录关键帧
+          </Button>
+          <Button disabled={!selectedObjectId} onClick={() => selectedObjectId && duplicateObject(selectedObjectId)}>
+            复制
+          </Button>
+          <Button danger disabled={!selectedObjectId} onClick={() => selectedObjectId && removeObject(selectedObjectId)}>
+            删除
+          </Button>
+          <Button onClick={handleAddCameraKeyframe}>记录相机（{cameraKeyframes.length}）</Button>
+          {CAMERA_PRESET_LABELS.map((item) => (
+            <Button key={item.value} onClick={() => handleCameraPreset(item.value)}>
+              {item.label}
+            </Button>
+          ))}
+        </>
+      )}
       <Button onClick={() => setIsPlaying(!isPlaying)}>{isPlaying ? "暂停" : "播放"}</Button>
       <Button onClick={handleExport}>导出 JSON</Button>
       <Button onClick={() => fileInputRef.current?.click()}>导入 JSON</Button>

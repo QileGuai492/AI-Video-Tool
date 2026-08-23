@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Card, Col, Input, List, Row, Space, Typography, message } from "antd";
+import { Alert, Button, Card, Col, Input, List, Row, Segmented, Space, Typography, message } from "antd";
 import client from "../api/client";
 import EditorToolbar from "../components/EditorToolbar";
 import KeyframeList from "../components/KeyframeList";
@@ -35,6 +35,7 @@ export default function Workbench() {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [projects, setProjects] = useState<PrevisProjectItem[]>([]);
+  const [editorMode, setEditorMode] = useState<"simple" | "advanced">("advanced");
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const shotMarkers = usePrevisStore((state) => state.shotMarkers);
@@ -226,8 +227,21 @@ export default function Workbench() {
 
         {/* 中间：3D 编辑器 */}
         <Col span={12}>
-          <Card title="白模编辑" size="small">
-            <EditorToolbar onSave={handleSave} />
+          <Card
+            title="白模编辑"
+            size="small"
+            extra={
+              <Segmented
+                options={[
+                  { label: "简单", value: "simple" },
+                  { label: "高级", value: "advanced" },
+                ]}
+                value={editorMode}
+                onChange={(value) => setEditorMode(value as "simple" | "advanced")}
+              />
+            }
+          >
+            <EditorToolbar mode={editorMode} onSave={handleSave} />
             <PrevisCanvas onRecorded={handleRecorded} />
             <Timeline />
           </Card>
