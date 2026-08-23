@@ -147,15 +147,15 @@ def retry_task(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> VideoTask:
-    """重试失败任务。"""
+    """重试失败或已取消任务。"""
     task = db.query(VideoTask).filter(
         VideoTask.id == task_id,
         VideoTask.user_id == current_user.id,
     ).first()
     if task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
-    if task.status != "failed":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="只有失败任务可以重试")
+    if task.status not in {"failed", "cancelled"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="只有失败或已取消任务可以重试")
     task.status = "pending"
     db.commit()
     db.refresh(task)

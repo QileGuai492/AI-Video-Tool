@@ -3,6 +3,8 @@
 依赖 Celery eager 模式（本地配置），任务会同步执行。
 """
 
+from app.models import User, VideoTask
+
 
 def test_submit_and_query_task(client, auth_headers) -> None:
     """提交任务后可以查询状态。"""
@@ -101,4 +103,24 @@ def test_submit_batch_tasks(client, auth_headers) -> None:
     assert body["count"] == 3
     assert len(body["task_ids"]) == 3
     assert body["batch_id"]
+
+
+def test_retry_cancelled_task(client, auth_headers, db_session) -> None:
+    """已取消任务应可以重试。"""
+    user = db_session.query(User).filter_by(username="test_user").first()
+    task = VideoTask(
+        user_id=user.id,
+        prompt="已取消的任务",
+        status="cancelled",
+    )
+    db_session.add(task)
+    db_session.commit()
+    db_session.refresh(task)
+
+    response = client.post(
+        f"/api/v1/generate/{task.id}/retry",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
 

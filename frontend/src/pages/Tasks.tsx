@@ -102,7 +102,7 @@ export default function Tasks() {
                       取消
                     </Button>
                   ) : null,
-                  task.status === "failed" ? (
+                  ["failed", "cancelled"].includes(task.status) ? (
                     <Button size="small" onClick={() => handleRetry(task.id)}>
                       重试
                     </Button>

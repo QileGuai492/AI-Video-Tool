@@ -234,6 +234,13 @@ async def upload_previs_video(
     project = _get_owned_project(db, project_id, current_user.id)
     suffix = Path(file.filename or "").suffix.lower().lstrip(".")
     content = await file.read()
+    logger.info(
+        "白模视频上传 project_id=%s filename=%s size=%s suffix=%s",
+        project_id,
+        file.filename,
+        len(content),
+        suffix,
+    )
 
     if suffix == "webm":
         tmp_dir = Path("uploads/previs_tmp")
@@ -246,7 +253,9 @@ async def upload_previs_video(
             content = output.read_bytes()
             suffix = "mp4"
         except Exception as exc:  # noqa: BLE001
-            logger.exception("白模 WebM 转 MP4 失败")
+            logger.exception(
+                "白模 WebM 转 MP4 失败 source_size=%s", source.stat().st_size
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"白模视频转 MP4 失败：{exc}",

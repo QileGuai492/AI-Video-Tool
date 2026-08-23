@@ -41,11 +41,21 @@ def _get_ffmpeg() -> str:
 
 
 def convert_webm_to_mp4(source: Path, output: Path) -> Path:
-    """将 WebM 转换为 MP4（H.264 + yuv420p）。"""
+    """将 WebM 转换为 MP4（H.264 + yuv420p）。
+
+    增加 genpts/analyzeduration/probesize，兼容浏览器 MediaRecorder 产出的
+    无 duration、时间戳不完整的 WebM。
+    """
     ffmpeg = _get_ffmpeg()
     command = [
         ffmpeg,
         "-y",
+        "-fflags",
+        "+genpts",
+        "-analyzeduration",
+        "100M",
+        "-probesize",
+        "100M",
         "-i",
         str(source),
         "-c:v",

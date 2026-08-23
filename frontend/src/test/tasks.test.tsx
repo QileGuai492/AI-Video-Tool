@@ -63,4 +63,19 @@ describe("Tasks", () => {
 
     expect(mockedPost).toHaveBeenCalledWith("/generate/2/retry");
   });
+
+  it("已取消任务显示重试按钮并调用 retry 接口", async () => {
+    const user = userEvent.setup();
+    mockedGet.mockResolvedValue({
+      data: [{ id: 4, prompt: "已取消", status: "cancelled", video_url: null, created_at: "2026-01-01T00:00:00Z" }],
+    });
+    mockedPost.mockResolvedValue({});
+
+    render(<Tasks />);
+    await screen.findByText("任务 #4");
+    expect(screen.getByRole("button", { name: /重\s*试/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /重\s*试/ }));
+
+    expect(mockedPost).toHaveBeenCalledWith("/generate/4/retry");
+  });
 });
