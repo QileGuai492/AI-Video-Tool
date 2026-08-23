@@ -28,12 +28,12 @@ def _get_owned_character(db: Session, character_id: int, user_id: int) -> Charac
     return character
 
 
-@router.get("", response_model=list[CharacterRead])
+@router.get("", response_model=list[CharacterDetailRead])
 def list_characters(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Character]:
-    """获取当前用户的角色列表。"""
+    """获取当前用户的角色列表（含多角度参考图）。"""
     return db.query(Character).filter(Character.user_id == current_user.id).all()
 
 

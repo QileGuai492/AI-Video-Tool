@@ -55,6 +55,8 @@ export default function Workbench() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [voiceId, setVoiceId] = useState<string | undefined>(undefined);
   const [withSubtitle, setWithSubtitle] = useState(true);
+  const [characters, setCharacters] = useState<{ id: number; name: string }[]>([]);
+  const [characterId, setCharacterId] = useState<number | undefined>(undefined);
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const shotMarkers = usePrevisStore((state) => state.shotMarkers);
@@ -85,6 +87,12 @@ export default function Workbench() {
   useEffect(() => {
     loadProjects();
     loadTemplates();
+    client
+      .get("/characters")
+      .then((response) => setCharacters(response.data))
+      .catch(() => {
+        // 忽略角色加载失败
+      });
   }, []);
 
   const handleLoadProject = (project: PrevisProjectItem) => {
@@ -270,6 +278,7 @@ export default function Workbench() {
         duration: 5,
         aspect_ratio: "16:9",
         quality: "standard",
+        character_id: characterId ?? null,
         voice_id: voiceId,
         with_subtitle: withSubtitle,
       });
@@ -303,6 +312,7 @@ export default function Workbench() {
         duration: 5,
         aspect_ratio: "16:9",
         quality: "standard",
+        character_id: characterId ?? null,
         voice_id: voiceId,
         with_subtitle: withSubtitle,
       });
@@ -618,6 +628,17 @@ export default function Workbench() {
             <Divider style={{ margin: "16px 0" }} />
             <Text strong>生成操作</Text>
             <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>
+              <Select
+                allowClear
+                placeholder="选择角色（可选）"
+                style={{ width: "100%" }}
+                value={characterId}
+                onChange={setCharacterId}
+                options={characters.map((character) => ({
+                  value: character.id,
+                  label: character.name,
+                }))}
+              />
               <Space.Compact block>
                 <Select
                   allowClear

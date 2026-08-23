@@ -10,6 +10,7 @@ interface CharacterItem {
   reference_image_url: string | null;
   description: string | null;
   created_at: string;
+  multi_views?: { id: number; view_name: string; image_url: string }[];
 }
 
 export default function Characters() {
@@ -211,6 +212,23 @@ export default function Characters() {
                 )}
                 {character.description ? (
                   <ParagraphText text={character.description} />
+                ) : null}
+                {character.multi_views && character.multi_views.length > 0 ? (
+                  <div style={{ marginTop: 8 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>多角度参考图</Text>
+                    <Space wrap style={{ marginTop: 4 }}>
+                      {character.multi_views.map((view) => (
+                        <Space key={view.id} direction="vertical" size={2} style={{ textAlign: "center" }}>
+                          <img
+                            src={view.image_url}
+                            alt={view.view_name}
+                            style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }}
+                          />
+                          <Text type="secondary" style={{ fontSize: 12 }}>{view.view_name}</Text>
+                        </Space>
+                      ))}
+                    </Space>
+                  </div>
                 ) : null}
                 <Form
                   form={multiViewForm}
