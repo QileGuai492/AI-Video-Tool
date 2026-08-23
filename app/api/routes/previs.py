@@ -4,8 +4,6 @@ import logging
 import uuid
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -23,6 +21,8 @@ from app.schemas.previs import (
 )
 from app.services.previs_service import convert_webm_to_mp4, generate_previs_scene_from_text
 from app.storage import storage
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/previs", tags=["白模预演"])
 

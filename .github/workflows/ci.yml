@@ -28,7 +28,7 @@ jobs:
       - name: 安装 Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: 前端安装依赖
         working-directory: frontend
@@ -45,9 +45,20 @@ jobs:
       - name: 运行全部测试
         run: pytest --cov=app --cov-report=term-missing --alluredir=allure-results
 
-      - name: 获取 Allure 历史
-        uses: actions/checkout@v4
+      - name: 检查 gh-pages 分支
+        id: check-gh-pages
         if: always()
+        run: |
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            mkdir -p gh-pages
+          fi
+
+      - name: 获取 Allure 历史
+        if: always() && steps.check-gh-pages.outputs.exists == 'true'
+        uses: actions/checkout@v4
         continue-on-error: true
         with:
           ref: gh-pages
