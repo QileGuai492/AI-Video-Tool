@@ -41,11 +41,21 @@ class AgnesLLMProvider:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+        user_content: str | list[dict] = request.user_prompt
+        if request.image_urls:
+            user_content = [
+                {"type": "text", "text": request.user_prompt},
+                *[
+                    {"type": "image_url", "image_url": {"url": image_url}}
+                    for image_url in request.image_urls
+                ],
+            ]
+
         payload = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": request.system_prompt},
-                {"role": "user", "content": request.user_prompt},
+                {"role": "user", "content": user_content},
             ],
             "temperature": request.temperature,
             "max_tokens": request.max_tokens,

@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     # 成本与质量
     default_cost_limit: float = 50.0
     quality_threshold: float = 7.5
+    quality_vlm_enabled: bool = False
 
     # 任务编排
     orchestrator_backend: str = "simple"  # simple / langgraph

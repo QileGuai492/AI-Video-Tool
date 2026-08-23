@@ -28,7 +28,7 @@ from app.services.previs_service import (
     extract_keyframes,
     extract_shot_keyframes,
 )
-from app.services.quality_service import evaluate_video
+from app.services.quality_service import evaluate_video, evaluate_video_with_vlm
 from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
 from app.services.video_stitcher import StitchingError, stitch_videos
@@ -347,7 +347,10 @@ def quality_check(state: GenerationState) -> GenerationState:
     """质量评估。"""
     _update_task_status(state["task_id"], "quality_check")
     settings = get_settings()
-    report = evaluate_video(state.get("final_video_url"), settings.quality_threshold)
+    if settings.quality_vlm_enabled:
+        report = evaluate_video_with_vlm(state.get("final_video_url"), settings.quality_threshold)
+    else:
+        report = evaluate_video(state.get("final_video_url"), settings.quality_threshold)
     return {**state, "quality_score": report.score}
 
 

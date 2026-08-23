@@ -88,6 +88,7 @@ class LLMRequest:
     user_prompt: str
     temperature: float = 0.7
     max_tokens: int = 2000
+    image_urls: list[str] = field(default_factory=list)
 
 
 @dataclass
