@@ -12,20 +12,20 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# 先复制依赖清单，利用 Docker 缓存
-COPY pyproject.toml README.md ./
+# 先单独安装依赖层：只拷贝 requirements.txt，应用代码变化时不会重新下载依赖
+COPY requirements.txt ./
+RUN pip install --no-cache-dir setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt
 
-# 复制应用代码
+# 再复制项目文件与源码
+COPY pyproject.toml README.md ./
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
 COPY scripts ./scripts
 
-# 预先安装构建依赖，避免每次构建时下载
-RUN pip install --no-cache-dir setuptools wheel
-
-# 安装项目（禁用构建隔离，减少网络依赖）
-RUN pip install --no-cache-dir --no-build-isolation .
+# 安装项目本体（--no-deps 避免重复解析/下载依赖）
+RUN pip install --no-cache-dir --no-deps --no-build-isolation .
 
 EXPOSE 8000
 
