@@ -5,6 +5,7 @@
 后续 Sprint 4 将替换为 LangGraph 状态图实现。
 """
 
+import logging
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -34,8 +35,10 @@ from app.services.previs_service import (
 )
 from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
-from app.services.video_stitcher import StitchingError, stitch_videos
+from app.services.video_stitcher import StitchingError, burn_subtitle, stitch_videos
 from app.storage import storage
+
+logger = logging.getLogger(__name__)
 
 # 单个长视频任务内并行生成短视频片段的最大并发数
 MAX_PARALLEL_SEGMENTS = 4
@@ -59,6 +62,16 @@ class SimpleTaskOrchestrator:
         )
         urls.extend(view.image_url for view in multi_views)
         return urls
+
+    def _infer_voice(self, text: str) -> str:
+        """根据文案关键词推断默认配音角色。"""
+        male_keywords = ["他", "男", "父亲", "国王", "蜘蛛侠", "钢铁侠", "蝙蝠侠", "超人", "哥哥", "叔叔", "先生"]
+        female_keywords = ["她", "女", "母亲", "女王", "公主", "姐姐", "阿姨", "女士"]
+        if any(keyword in text for keyword in male_keywords):
+            return "male_01"
+        if any(keyword in text for keyword in female_keywords):
+            return "female_01"
+        return "female_01"
 
     def run(self, task_id: int) -> None:
         """执行完整生成流水线。"""
@@ -102,7 +115,7 @@ class SimpleTaskOrchestrator:
             first_frame_url: str | None = None
 
             if task.previs_video_url:
-                # 白模降级：按镜头区间抽帧作为每段首帧，不再单独生成首帧
+                # 白模只作为动作/镜头参考，首帧必须用真实生成图，避免成品保留白模外观
                 shots = (task.camera_script or {}).get("shots", [])
                 if shots:
                     previs_frames = extract_shot_keyframes(task.previs_video_url, shots)
@@ -110,7 +123,27 @@ class SimpleTaskOrchestrator:
                     previs_frames = extract_keyframes(task.previs_video_url)
                 if not previs_frames:
                     raise RuntimeError("白模视频未抽取到关键帧")
-                first_frame_url = previs_frames[0]
+                if task.image_url:
+                    first_frame_url = task.image_url
+                else:
+                    image_provider = registry.get_image_provider()
+                    image_result = image_provider.generate_image(
+                        ImageGenerationRequest(
+                            prompt=task.optimized_prompt or task.prompt,
+                            reference_image_urls=reference_image_urls,
+                        )
+                    )
+                    first_frame_url = image_result.image_url
+                    self._write_generation_log(
+                        db=db,
+                        task_id=task.id,
+                        user_id=task.user_id,
+                        provider=image_result.provider,
+                        call_type="image",
+                        cost=image_result.cost,
+                        status="success",
+                    )
+                    db.commit()
             elif task.image_url:
                 first_frame_url = task.image_url
             else:
@@ -148,7 +181,7 @@ class SimpleTaskOrchestrator:
             camera_shots = (task.camera_script or {}).get("shots", [])
 
             def generate_segment(index: int) -> tuple[int, str, str]:
-                frame_url = previs_frames[index % len(previs_frames)] if previs_frames else first_frame_url
+                frame_url = first_frame_url
                 shot = camera_shots[index] if index < len(camera_shots) else None
                 segment_prompt = build_segment_prompt(task.optimized_prompt or task.prompt, shot)
                 video_request = VideoGenerationRequest(
@@ -229,23 +262,46 @@ class SimpleTaskOrchestrator:
                 final_video_url = local_paths[0].as_posix().replace("uploads/", "/uploads/")
 
             # 5. 自动生成配音与字幕（失败不阻塞主流程）
+            voice_id = task.voice_id or self._infer_voice(task.optimized_prompt or task.prompt)
             try:
                 audio_track = generate_tts_audio(
                     db=db,
                     user_id=task.user_id,
                     task_id=task.id,
                     text=task.optimized_prompt or task.prompt,
-                    voice_id="female_01",
+                    voice_id=voice_id,
                 )
                 task.audio_url = audio_track.source_url
             except Exception:  # noqa: BLE001
                 task.audio_url = None
 
-            try:
-                subtitle_url, _ = generate_subtitle(task.optimized_prompt or task.prompt)
-                task.subtitle_url = subtitle_url
-            except Exception:  # noqa: BLE001
-                task.subtitle_url = None
+            if task.with_subtitle:
+                try:
+                    subtitle_url, subtitle_content = generate_subtitle(task.optimized_prompt or task.prompt)
+                    task.subtitle_url = subtitle_url
+                    if final_video_url and final_video_url.startswith("/uploads/"):
+                        tmp_dir = Path("uploads/tmp")
+                        tmp_dir.mkdir(parents=True, exist_ok=True)
+                        srt_path = tmp_dir / f"sub_{uuid.uuid4().hex}.srt"
+                        srt_path.write_text(subtitle_content, encoding="utf-8")
+                        source_video = Path("uploads") / final_video_url.removeprefix("/uploads/")
+                        burned_output = tmp_dir / f"subbed_{uuid.uuid4().hex}.mp4"
+                        try:
+                            burn_subtitle(source_video, srt_path, burned_output)
+                            key = storage.upload(
+                                content=burned_output.read_bytes(),
+                                suffix="mp4",
+                                folder="videos",
+                            )
+                            final_video_url = storage.get_url(key)
+                        except Exception:  # noqa: BLE001
+                            # 烧录失败时保留原视频
+                            logger.warning("字幕烧录失败，保留原视频", exc_info=True)
+                        finally:
+                            srt_path.unlink(missing_ok=True)
+                            burned_output.unlink(missing_ok=True)
+                except Exception:  # noqa: BLE001
+                    task.subtitle_url = None
 
             task.video_url = final_video_url
             task.status = "completed"

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Card, Col, Divider, Input, InputNumber, List, Row, Segmented, Space, Typography, Upload, message } from "antd";
+import { Alert, Button, Card, Col, Divider, Input, InputNumber, List, Row, Segmented, Select, Space, Switch, Typography, Upload, message } from "antd";
 import client from "../api/client";
 import EditorToolbar from "../components/EditorToolbar";
 import KeyframeList from "../components/KeyframeList";
@@ -53,6 +53,8 @@ export default function Workbench() {
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [voiceId, setVoiceId] = useState<string | undefined>(undefined);
+  const [withSubtitle, setWithSubtitle] = useState(true);
   const objects = usePrevisStore((state) => state.objects);
   const selectedObjectId = usePrevisStore((state) => state.selectedObjectId);
   const shotMarkers = usePrevisStore((state) => state.shotMarkers);
@@ -268,6 +270,8 @@ export default function Workbench() {
         duration: 5,
         aspect_ratio: "16:9",
         quality: "standard",
+        voice_id: voiceId,
+        with_subtitle: withSubtitle,
       });
       message.success(`AI 生成任务已提交，任务 ID：${response.data.id}`);
     } catch (error) {
@@ -299,6 +303,8 @@ export default function Workbench() {
         duration: 5,
         aspect_ratio: "16:9",
         quality: "standard",
+        voice_id: voiceId,
+        with_subtitle: withSubtitle,
       });
       message.success(`已提交 ${response.data.count} 个批量任务`);
     } catch (error) {
@@ -608,6 +614,23 @@ export default function Workbench() {
             <Divider style={{ margin: "16px 0" }} />
             <Text strong>生成操作</Text>
             <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>
+              <Space.Compact block>
+                <Select
+                  allowClear
+                  placeholder="配音音色"
+                  style={{ width: "100%" }}
+                  value={voiceId}
+                  onChange={setVoiceId}
+                  options={[
+                    { value: "female_01", label: "女声（默认）" },
+                    { value: "male_01", label: "男声" },
+                  ]}
+                />
+              </Space.Compact>
+              <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                <Text>添加字幕</Text>
+                <Switch checked={withSubtitle} onChange={setWithSubtitle} />
+              </Space>
               <Button block loading={generatingPrevis} onClick={handleGeneratePrevis}>
                 文字生成白模
               </Button>

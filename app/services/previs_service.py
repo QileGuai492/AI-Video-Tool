@@ -66,9 +66,16 @@ def convert_webm_to_mp4(source: Path, output: Path) -> Path:
         "yuv420p",
         str(output),
     ]
-    result = subprocess.run(command, capture_output=True, text=True, timeout=600)
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=600,
+    )
     if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg 转 MP4 失败：{result.stderr[-500:]}")
+        raise RuntimeError(f"FFmpeg 转 MP4 失败：{(result.stderr or '')[-500:]}")
     return output
 
 
@@ -99,7 +106,14 @@ def extract_keyframes(
         f"fps=1/{interval_seconds}",
         str(pattern),
     ]
-    result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=300,
+    )
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg 抽帧失败：{result.stderr[-500:]}")
 
@@ -137,7 +151,14 @@ def extract_shot_keyframes(video_url: str, shots: list[dict]) -> list[str]:
             "1",
             str(output),
         ]
-        result = subprocess.run(command, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+        )
         if result.returncode != 0 or not output.exists():
             raise RuntimeError(f"FFmpeg 镜头抽帧失败：{result.stderr[-500:]}")
         urls.append(storage.get_url(f"previs_frames/{output.name}"))

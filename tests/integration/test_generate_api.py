@@ -158,6 +158,27 @@ def test_task_uid_cross_user_isolated(client, auth_headers, db_session) -> None:
     assert cancel_response.status_code == 404
 
 
+def test_submit_task_with_voice_and_subtitle(client, auth_headers, db_session) -> None:
+    """提交任务时应保存配音音色与字幕开关。"""
+    response = client.post(
+        "/api/v1/generate/video",
+        headers=auth_headers,
+        json={
+            "prompt": "蜘蛛侠测试",
+            "voice_id": "male_01",
+            "with_subtitle": False,
+            "duration": 5,
+            "aspect_ratio": "16:9",
+            "quality": "standard",
+        },
+    )
+    assert response.status_code == 200
+    task = db_session.query(VideoTask).filter(VideoTask.id == response.json()["id"]).first()
+    assert task is not None
+    assert task.voice_id == "male_01"
+    assert task.with_subtitle is False
+
+
 def test_submit_task_with_reference_images(client, auth_headers, db_session) -> None:
     """提交任务时应保存首图与多张参考图 URL。"""
     response = client.post(

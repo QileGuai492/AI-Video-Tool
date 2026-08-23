@@ -60,11 +60,62 @@ def stitch_videos(segment_paths: list[Path], output_path: Path) -> Path:
     ]
 
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=300,
+        )
     except FileNotFoundError as exc:
         raise StitchingError("未找到 ffmpeg，请先安装 FFmpeg") from exc
 
     if result.returncode != 0:
-        raise StitchingError(f"FFmpeg 拼接失败：{result.stderr[-500:]}")
+        raise StitchingError(f"FFmpeg 拼接失败：{(result.stderr or '')[-500:]}")
+
+    return output_path
+
+
+def burn_subtitle(video_path: Path, srt_path: Path, output_path: Path) -> Path:
+    """把 SRT 字幕烧录到视频中。
+
+    通过把工作目录设为字幕所在目录并使用相对文件名，规避 Windows 路径冒号/中文路径问题。
+    """
+    ffmpeg = _get_ffmpeg_executable()
+    command = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(video_path.resolve()),
+        "-vf",
+        f"subtitles=filename={srt_path.name}",
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "copy",
+        str(output_path.resolve()),
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            cwd=srt_path.parent,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=600,
+        )
+    except FileNotFoundError as exc:
+        raise StitchingError("未找到 ffmpeg，请先安装 FFmpeg") from exc
+
+    if result.returncode != 0:
+        raise StitchingError(f"FFmpeg 字幕烧录失败：{(result.stderr or '')[-500:]}")
 
     return output_path

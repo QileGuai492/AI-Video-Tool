@@ -37,6 +37,8 @@ def create_video_task(db: Session, user_id: int, request: GenerateVideoRequest) 
         character_id=request.character_id,
         image_url=request.image_url,
         reference_image_urls=request.reference_image_urls,
+        voice_id=request.voice_id,
+        with_subtitle=request.with_subtitle,
         prompt=request.prompt,
         status="pending",
         duration=request.duration,

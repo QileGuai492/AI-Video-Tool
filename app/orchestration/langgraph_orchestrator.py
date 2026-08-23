@@ -39,6 +39,17 @@ from app.storage import storage
 MAX_PARALLEL_SEGMENTS = 4
 
 
+def _infer_voice(text: str) -> str:
+    """根据文案关键词推断默认配音角色。"""
+    male_keywords = ["他", "男", "父亲", "国王", "蜘蛛侠", "钢铁侠", "蝙蝠侠", "超人", "哥哥", "叔叔", "先生"]
+    female_keywords = ["她", "女", "母亲", "女王", "公主", "姐姐", "阿姨", "女士"]
+    if any(keyword in text for keyword in male_keywords):
+        return "male_01"
+    if any(keyword in text for keyword in female_keywords):
+        return "female_01"
+    return "female_01"
+
+
 class GenerationState(TypedDict, total=False):
     """LangGraph 状态。"""
 
@@ -180,7 +191,7 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
                 reference_image_urls.extend(view.image_url for view in multi_views)
 
         if task.previs_video_url:
-            # 白模降级：按镜头区间抽帧作为每段首帧，不再单独生成首帧
+            # 白模只作为动作/镜头参考，首帧必须用真实生成图，避免成品保留白模外观
             shots = (task.camera_script or {}).get("shots", [])
             if shots:
                 previs_frames = extract_shot_keyframes(task.previs_video_url, shots)
@@ -188,9 +199,30 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
                 previs_frames = extract_keyframes(task.previs_video_url)
             if not previs_frames:
                 return {**state, "error": "白模视频未抽取到关键帧"}
+            if task.image_url:
+                return {
+                    **state,
+                    "first_frame_url": task.image_url,
+                    "previs_frames": previs_frames,
+                }
+            provider = registry.get_image_provider()
+            result = provider.generate_image(
+                ImageGenerationRequest(
+                    prompt=state.get("optimized_prompt") or task.prompt,
+                    reference_image_urls=reference_image_urls,
+                )
+            )
+            _write_generation_log(
+                task_id=task.id,
+                user_id=task.user_id,
+                provider=result.provider,
+                call_type="image",
+                cost=result.cost,
+                status="success",
+            )
             return {
                 **state,
-                "first_frame_url": previs_frames[0],
+                "first_frame_url": result.image_url,
                 "previs_frames": previs_frames,
             }
 
@@ -247,7 +279,7 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                 reference_image_urls.extend(view.image_url for view in multi_views)
 
         def generate_segment(index: int) -> tuple[int, str, str]:
-            frame_url = previs_frames[index % len(previs_frames)] if previs_frames else state.get("first_frame_url")
+            frame_url = state.get("first_frame_url")
             shot = camera_shots[index] if index < len(camera_shots) else None
             segment_prompt = build_segment_prompt(state.get("optimized_prompt") or task.prompt, shot)
             request = VideoGenerationRequest(
@@ -312,6 +344,7 @@ def generate_audio(state: GenerationState) -> GenerationState:
                 user_id=task.user_id,
                 task_id=task.id,
                 text=state.get("optimized_prompt") or task.prompt,
+                voice_id=task.voice_id or _infer_voice(state.get("optimized_prompt") or task.prompt),
             )
             task.audio_url = track.source_url
             db.commit()
@@ -331,6 +364,8 @@ def generate_subtitle_node(state: GenerationState) -> GenerationState:
         task = db.query(VideoTask).filter(VideoTask.id == task_id).first()
         if task is None:
             return {**state, "error": "任务不存在"}
+        if not task.with_subtitle:
+            return state
         try:
             subtitle_url, _ = generate_subtitle(state.get("optimized_prompt") or task.prompt)
             task.subtitle_url = subtitle_url
