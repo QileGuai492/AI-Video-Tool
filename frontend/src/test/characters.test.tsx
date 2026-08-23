@@ -61,6 +61,16 @@ describe("Characters", () => {
     );
   });
 
+  it("角色库提供图片上传入口", async () => {
+    mockedGet.mockResolvedValue({ data: [] });
+
+    render(<Characters />);
+
+    await waitFor(() => expect(mockedGet).toHaveBeenCalledWith("/characters"));
+    expect(screen.getByRole("button", { name: /上\s*传\s*图\s*片/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /上\s*传/ })).toBeInTheDocument();
+  });
+
   it("删除角色会调用 DELETE /characters/{id}", async () => {
     const user = userEvent.setup();
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);

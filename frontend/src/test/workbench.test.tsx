@@ -132,6 +132,18 @@ describe("Workbench", () => {
     );
   });
 
+  it("提供上传参考图和参考视频生成白模入口", async () => {
+    mockListData([], []);
+
+    render(<Workbench />);
+
+    await screen.findByPlaceholderText("输入成片文案，例如：一只猫在夕阳下奔跑");
+    expect(screen.getByRole("button", { name: /上\s*传\s*参\s*考\s*图/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /上\s*传\s*参\s*考\s*视\s*频\s*生\s*成\s*白\s*模/ })
+    ).toBeInTheDocument();
+  });
+
   it("保存项目会调用 PUT /previs/projects/{id}", async () => {
     const user = userEvent.setup();
     mockListData([project], []);
