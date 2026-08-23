@@ -3,11 +3,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_db
 from app.models import User
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
+from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserRead, UserUpdate
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
@@ -47,3 +48,27 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
         access_token=create_access_token(str(user.id)),
         expires_in=settings.jwt_expire_minutes * 60,
     )
+
+
+@router.get("/me", response_model=UserRead)
+def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """获取当前登录用户信息。"""
+    return current_user
+
+
+@router.put("/me", response_model=UserRead)
+def update_current_user_info(
+    payload: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """更新当前用户邮箱或密码。"""
+    if payload.email is not None:
+        current_user.email = payload.email
+    if payload.password:
+        current_user.password_hash = hash_password(payload.password)
+    db.commit()
+    db.refresh(current_user)
+    return current_user

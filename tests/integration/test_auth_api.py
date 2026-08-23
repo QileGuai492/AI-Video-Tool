@@ -40,3 +40,24 @@ def test_login_wrong_password(client) -> None:
         json={"username": "carol", "password": "wrong"},
     )
     assert response.status_code == 401
+
+
+def test_get_and_update_current_user(client, auth_headers) -> None:
+    """当前用户可查看并更新邮箱/密码。"""
+    get_response = client.get("/api/v1/auth/me", headers=auth_headers)
+    assert get_response.status_code == 200
+    assert get_response.json()["username"] == "test_user"
+
+    update_response = client.put(
+        "/api/v1/auth/me",
+        headers=auth_headers,
+        json={"email": "new@example.com", "password": "newpass123"},
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["email"] == "new@example.com"
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"username": "test_user", "password": "newpass123"},
+    )
+    assert login_response.status_code == 200

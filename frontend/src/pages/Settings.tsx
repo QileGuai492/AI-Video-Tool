@@ -13,20 +13,32 @@ interface SettingsData {
 
 export default function Settings() {
   const [form] = Form.useForm<SettingsData>();
+  const [userForm] = Form.useForm<{ username: string; email?: string; password?: string }>();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [userLoading, setUserLoading] = useState(false);
+  const [userSaving, setUserSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setUserLoading(true);
     try {
-      const response = await client.get("/settings");
-      form.setFieldsValue(response.data);
+      const [userResponse, settingsResponse] = await Promise.all([
+        client.get("/auth/me"),
+        client.get("/settings"),
+      ]);
+      userForm.setFieldsValue({
+        username: userResponse.data.username,
+        email: userResponse.data.email ?? "",
+      });
+      form.setFieldsValue(settingsResponse.data);
     } catch {
       message.error("加载设置失败");
     } finally {
       setLoading(false);
+      setUserLoading(false);
     }
-  }, [form]);
+  }, [form, userForm]);
 
   useEffect(() => {
     load();
@@ -44,9 +56,41 @@ export default function Settings() {
     }
   };
 
+  const handleSaveUser = async (values: { username: string; email?: string; password?: string }) => {
+    setUserSaving(true);
+    try {
+      const payload: { email?: string; password?: string } = {};
+      if (values.email !== undefined) payload.email = values.email;
+      if (values.password) payload.password = values.password;
+      await client.put("/auth/me", payload);
+      message.success("用户信息已保存");
+      userForm.setFieldsValue({ password: "" });
+    } catch {
+      message.error("保存用户信息失败");
+    } finally {
+      setUserSaving(false);
+    }
+  };
+
   return (
     <div>
       <Title level={3}>设置</Title>
+      <Card title="用户信息" loading={userLoading} style={{ maxWidth: 560, marginBottom: 16 }}>
+        <Form form={userForm} layout="vertical" onFinish={handleSaveUser}>
+          <Form.Item name="username" label="用户名">
+            <Input disabled />
+          </Form.Item>
+          <Form.Item name="email" label="邮箱">
+            <Input placeholder="请输入邮箱" />
+          </Form.Item>
+          <Form.Item name="password" label="新密码（留空则不修改）">
+            <Input.Password placeholder="请输入新密码" />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" loading={userSaving}>
+            保存用户信息
+          </Button>
+        </Form>
+      </Card>
       <Card loading={loading} style={{ maxWidth: 560 }}>
         <Form form={form} layout="vertical" onFinish={handleSave}>
           <Form.Item name="default_aspect_ratio" label="默认视频比例">

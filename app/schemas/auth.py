@@ -1,6 +1,26 @@
 """认证相关 Schema。"""
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
+
+
+class UserRead(BaseModel):
+    """当前用户信息。"""
+
+    id: int
+    username: str
+    email: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UserUpdate(BaseModel):
+    """更新当前用户信息。"""
+
+    email: str | None = None
+    password: str | None = Field(default=None, min_length=6, max_length=128)
 
 
 class RegisterRequest(BaseModel):
