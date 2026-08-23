@@ -2,13 +2,21 @@
 
 from decimal import Decimal
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
+import app.models  # noqa: F401  确保模型注册到 Base.metadata
+from app.db.base import Base
+from app.models import PrevisTemplate
 from app.providers.base import LLMResult
 from app.services.previs_service import (
+    BUILTIN_PREVIS_TEMPLATES,
     _parse_scene_json,
     build_segment_prompt,
     build_shot_prompt,
     generate_previs_scene_from_text,
     normalize_previs_scene,
+    seed_builtin_previs_templates,
 )
 
 
@@ -102,3 +110,14 @@ def test_normalize_previs_scene_fixes_invalid_data() -> None:
     assert scene["shotMarkers"] == [3.0]
     assert scene["cameraKeyframes"][0]["time"] == 5.0
     assert "1" in scene["shotDescriptions"]
+
+
+def test_seed_builtin_previs_templates_idempotent() -> None:
+    """内置模板种子应幂等，重复执行不会重复写入。"""
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    seed_builtin_previs_templates(engine)
+    seed_builtin_previs_templates(engine)
+    with Session(engine) as db:
+        count = db.query(PrevisTemplate).filter(PrevisTemplate.is_builtin.is_(True)).count()
+    assert count == len(BUILTIN_PREVIS_TEMPLATES)

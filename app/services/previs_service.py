@@ -370,15 +370,90 @@ BUILTIN_PREVIS_TEMPLATES = [
             "duration": 5,
         },
     },
+    {
+        "name": "场景空镜模板",
+        "description": "无人空场景，相机缓慢摇移，适合转场/空镜",
+        "category": "场景",
+        "scene_json": {
+            "objects": [
+                {"id": "obj_1", "name": "地面", "type": "plane", "position": [0, 0, 0], "rotation": [-1.5708, 0, 0], "scale": [8, 8, 8]},
+                {"id": "obj_2", "name": "背景墙", "type": "box", "position": [0, 1, -4], "rotation": [0, 0, 0], "scale": [8, 3, 0.3]},
+            ],
+            "keyframes": {},
+            "cameraKeyframes": [
+                {"time": 0, "position": [0, 2, 6], "target": [0, 1, 0]},
+                {"time": 4, "position": [4, 2, 4], "target": [0, 1, 0]},
+            ],
+            "shotMarkers": [2],
+            "shotDescriptions": {"2": {"action": "空镜缓慢摇移", "camera": "横摇"}},
+            "duration": 5,
+        },
+    },
+    {
+        "name": "追逐动作模板",
+        "description": "角色快速跑过场景，适合追逐/动作镜头",
+        "category": "动作",
+        "scene_json": {
+            "objects": [
+                {"id": "obj_1", "name": "奔跑者", "type": "humanoid", "position": [-3, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+                {"id": "obj_2", "name": "地面", "type": "plane", "position": [0, 0, 0], "rotation": [-1.5708, 0, 0], "scale": [10, 4, 10]},
+                {"id": "obj_3", "name": "障碍物", "type": "box", "position": [1, 0.5, 0], "rotation": [0, 0, 0], "scale": [0.5, 1, 0.5]},
+            ],
+            "keyframes": {
+                "obj_1": [
+                    {"time": 0, "position": [-3, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+                    {"time": 4, "position": [3, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+                ]
+            },
+            "cameraKeyframes": [
+                {"time": 0, "position": [-2, 2, 4], "target": [-2, 1, 0]},
+                {"time": 4, "position": [2, 2, 4], "target": [2, 1, 0]},
+            ],
+            "shotMarkers": [2, 4],
+            "shotDescriptions": {"2": {"action": "角色快速奔跑并越过障碍", "camera": "侧面跟拍"}},
+            "duration": 5,
+        },
+    },
+    {
+        "name": "多镜头分镜模板",
+        "description": "两个角色多镜头切换，适合叙事/剧情场景",
+        "category": "多镜头",
+        "scene_json": {
+            "objects": [
+                {"id": "obj_1", "name": "角色A", "type": "humanoid", "position": [-1, 0, 0], "rotation": [0, 0.5, 0], "scale": [1, 1, 1]},
+                {"id": "obj_2", "name": "角色B", "type": "humanoid", "position": [1, 0, 0], "rotation": [0, -0.5, 0], "scale": [1, 1, 1]},
+                {"id": "obj_3", "name": "地面", "type": "plane", "position": [0, 0, 0], "rotation": [-1.5708, 0, 0], "scale": [6, 6, 6]},
+            ],
+            "keyframes": {},
+            "cameraKeyframes": [
+                {"time": 0, "position": [0, 2, 5], "target": [0, 1, 0]},
+                {"time": 2, "position": [-2, 2, 3], "target": [-1, 1, 0]},
+                {"time": 4, "position": [2, 2, 3], "target": [1, 1, 0]},
+            ],
+            "shotMarkers": [1, 2, 3, 4],
+            "shotDescriptions": {
+                "1": {"action": "双人全景", "camera": "中景"},
+                "2": {"action": "角色A特写", "camera": "近景"},
+                "3": {"action": "角色B特写", "camera": "近景"},
+            },
+            "duration": 5,
+        },
+    },
 ]
 
 
 def seed_builtin_previs_templates(engine) -> None:
-    """幂等写入内置白模模板。"""
+    """按名称幂等写入内置白模模板。"""
     with Session(engine) as db:
-        if db.query(PrevisTemplate).filter(PrevisTemplate.is_builtin.is_(True)).first() is not None:
-            return
+        added = False
         for template in BUILTIN_PREVIS_TEMPLATES:
+            exists = (
+                db.query(PrevisTemplate)
+                .filter(PrevisTemplate.is_builtin.is_(True), PrevisTemplate.name == template["name"])
+                .first()
+            )
+            if exists is not None:
+                continue
             db.add(
                 PrevisTemplate(
                     user_id=None,
@@ -389,7 +464,9 @@ def seed_builtin_previs_templates(engine) -> None:
                     is_builtin=True,
                 )
             )
-        db.commit()
+            added = True
+        if added:
+            db.commit()
 
 
 def generate_previs_scene_from_text(prompt: str) -> dict:
