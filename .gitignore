@@ -39,6 +39,12 @@ frontend/test-reports/
 frontend/*.tsbuildinfo
 .vite/
 
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+
 # IDE / 系统
 .idea/
 .vscode/
