@@ -27,6 +27,7 @@ class EvalOutcome:
     metrics: dict[str, float] = field(default_factory=dict)
     details: str = ""
     trace: list[str] = field(default_factory=list)
+    trajectory: list[dict] | None = None
 
 
 @dataclass

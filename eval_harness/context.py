@@ -10,6 +10,7 @@ from app.db.session import SessionLocal, engine
 from app.main import app
 from app.providers.registry import registry
 from eval_harness.models import EvalContext
+from eval_harness.trajectory import Trajectory, TrajectoryStep
 
 
 def prepare_environment() -> None:
@@ -42,6 +43,7 @@ class EvalContextImpl:
         registry.tts_providers = {"mock": registry.tts_providers["mock"]}
         registry.llm_providers = {"mock": registry.llm_providers["mock"]}
         self._client = TestClient(app)
+        self._trajectories: list[Trajectory] = []
 
     def db_session(self):
         """创建数据库会话。"""
@@ -51,6 +53,19 @@ class EvalContextImpl:
     def client(self):
         """返回 FastAPI TestClient。"""
         return self._client
+
+    @property
+    def trajectories(self) -> list[Trajectory]:
+        """返回本次评测记录的全部轨迹。"""
+        return self._trajectories
+
+    def record_trajectory(self, task_id: str, step: TrajectoryStep) -> None:
+        """记录一条轨迹步骤；同一任务 ID 自动追加。"""
+        trajectory = next((item for item in self._trajectories if item.task_id == task_id), None)
+        if trajectory is None:
+            trajectory = Trajectory(task_id=task_id)
+            self._trajectories.append(trajectory)
+        trajectory.steps.append(step)
 
 
 def create_context() -> EvalContext:

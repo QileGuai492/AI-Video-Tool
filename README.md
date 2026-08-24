@@ -46,6 +46,7 @@
 | [docs/31-生产部署加固.md](docs/31-生产部署加固.md) | HTTPS、OSS、监控、备份、安全加固 | 运维 / 开发 |
 | [docs/32-真实环境验证.md](docs/32-真实环境验证.md) | 真实 Agnes AI 白模端到端验证 | 开发 / 测试 |
 | [docs/33-安卓客户端开发方案.md](docs/33-安卓客户端开发方案.md) | 安卓客户端技术方案、架构、里程碑 | 安卓 / 产品 |
+| [docs/34-Harness评测方案.md](docs/34-Harness评测方案.md) | Harness 评测定义、与测试区别、改造方案 | 质量 / 评测 |
 | [logs/开发日志.md](logs/开发日志.md) | 常规开发日志、修复记录、验证结果 | 开发 / 项目管理 |
 | [logs/交互日志.md](logs/交互日志.md) | 与 AI 协作解决问题的交互过程记录 | 开发 |
 
@@ -53,7 +54,7 @@
 
 - **阶段**：Sprint 1~4 核心能力已完成，Sprint 5 功能增强与生产部署加固进行中，白模升级 Phase 1 已启动。
 - **技术栈**：FastAPI + SQLAlchemy + Celery + Redis + LangGraph + React/Three.js + Agnes AI / SiliconFlow + Nginx。
-- **已支持**：真实视频生成（Agnes 已验证）、Edge TTS、BGM、字幕叠加、批量生成、模板市场、角色库、用户设置、质量评估（启发式 + 可选 VLM）、Harness 评测、CI、白模预演 API、React 前端骨架、白模降级流水线、运镜预设、简单/高级模式。
+- **已支持**：真实视频生成（Agnes 已验证）、Edge TTS、BGM、字幕叠加、批量生成、模板市场、角色库、用户设置、质量评估（启发式 + 可选 VLM）、Harness 评测（轨迹/黄金轨迹/工具调用/趋势）、CI、白模预演 API、React 前端骨架、白模降级流水线、运镜预设、简单/高级模式。
 - **下一步**：增强文字→白模生成质量、接入 Seedance/可灵等多模型、Blender 容器化渲染、生产服务器部署落地。
 
 ## Docker 快速启动

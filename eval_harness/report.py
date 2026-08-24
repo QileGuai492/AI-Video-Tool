@@ -43,9 +43,11 @@ def generate_markdown(
     results: Iterable[EvalResult],
     summary: EvalSummary,
     mode: str = "Mock 隔离模式",
+    history: list[dict] | None = None,
 ) -> str:
     """生成 Markdown 格式评测报告。"""
     results = list(results)
+    history = history or []
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     lines = [
@@ -84,11 +86,30 @@ def generate_markdown(
         "",
         _stats_table("按评测对象统计", summary.by_target),
         "",
-        "## 三、用例明细",
+        "## 三、趋势对比",
         "",
-        "| ID | 分类 | 对象 | 用例 | 结果 | 得分 | 耗时(ms) | 说明 |",
-        "| --- | --- | --- | --- | --- | ---: | ---: | --- |",
+        "| 时间 | 模式 | 总数 | 通过 | 失败 | 通过率 | 平均分 | 总耗时(ms) |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
+    for item in history[-10:]:
+        lines.append(
+            f"| {item.get('timestamp', '')} | {item.get('mode', '')} "
+            f"| {item.get('total', 0)} | {item.get('passed', 0)} | {item.get('failed', 0)} "
+            f"| {_pct(float(item.get('pass_rate', 0.0)))} | {float(item.get('avg_score', 0.0)):.2f} "
+            f"| {float(item.get('total_duration_ms', 0.0)):.0f} |"
+        )
+    if not history:
+        lines.append("| 暂无历史数据，使用 `--trend` 记录后续评测。 |")
+
+    lines.extend(
+        [
+            "",
+            "## 四、用例明细",
+            "",
+            "| ID | 分类 | 对象 | 用例 | 结果 | 得分 | 耗时(ms) | 说明 |",
+            "| --- | --- | --- | --- | --- | ---: | ---: | --- |",
+        ]
+    )
 
     for result in results:
         case = result.case
@@ -99,7 +120,7 @@ def generate_markdown(
             f"| {result.outcome.details.replace('|', '/')[:80]} |"
         )
 
-    lines.extend(["", "## 四、失败与异常详情", ""])
+    lines.extend(["", "## 五、失败与异常详情", ""])
     failures = [r for r in results if r.outcome.status in {"fail", "error"}]
     if not failures:
         lines.append("无失败用例。")
@@ -119,9 +140,29 @@ def generate_markdown(
                 lines.extend(f"  - {item}" for item in result.outcome.trace)
             lines.append("")
 
+    trajectory_results = [r for r in results if r.outcome.trajectory]
+    if trajectory_results:
+        lines.extend(["", "## 六、轨迹明细", ""])
+        for result in trajectory_results:
+            lines.extend(
+                [
+                    f"### {result.case.id} - {result.case.name}",
+                    "",
+                    f"- 轨迹相似度/工具调用指标：{result.outcome.metrics}",
+                    "",
+                ]
+            )
+            for step in result.outcome.trajectory or []:
+                lines.append(
+                    f"- {step.get('agent')}.{step.get('action')} "
+                    f"params={step.get('params')} result={step.get('result')} "
+                    f"ok={step.get('ok')} cost={step.get('cost')} latency={step.get('latency_ms')}ms"
+                )
+            lines.append("")
+
     lines.extend(
         [
-            "## 五、结论与建议",
+            "## 七、结论与建议",
             "",
             f"当前在 {mode} 下共执行 {summary.total} 个用例，通过率 {_pct(summary.pass_rate)}，"
             f"平均得分 {summary.avg_score:.2f}。",
@@ -130,7 +171,7 @@ def generate_markdown(
             "1. 将本评测命令接入 CI，作为每次提交的回归门禁。",
             "2. 对失败/异常用例优先修复，再补充对应的单元测试。",
             "3. 在真实 API Key 可用时，增加 `--real` 冒烟评测，但不要纳入默认回归门禁。",
-            "4. 后续可扩展 LLM-as-Judge、轨迹相似度、成本预算等更细粒度指标。",
+            "4. Harness 评测与普通测试不同：除 pass/fail 外，应持续跟踪轨迹相似度、工具调用正确性、成本/延迟预算与趋势。",
         ]
     )
 

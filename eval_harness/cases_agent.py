@@ -27,9 +27,23 @@ from app.services.quality_service import evaluate_video
 from app.services.subtitle_service import generate_subtitle
 from app.services.video_stitcher import stitch_videos
 from eval_harness.models import EvalCase, EvalContext, EvalOutcome
+from eval_harness.trajectory import (
+    Trajectory,
+    TrajectoryStep,
+    format_trajectory,
+    trajectory_similarity,
+    validate_tool_use,
+)
 
 
-def _outcome(ok: bool, score: float, metrics: dict, details: str, trace: list[str] | None = None) -> EvalOutcome:
+def _outcome(
+    ok: bool,
+    score: float,
+    metrics: dict,
+    details: str,
+    trace: list[str] | None = None,
+    trajectory: list[dict] | None = None,
+) -> EvalOutcome:
     """构造评测结果。"""
     return EvalOutcome(
         status="pass" if ok and score >= 0.999 else "fail",
@@ -37,6 +51,7 @@ def _outcome(ok: bool, score: float, metrics: dict, details: str, trace: list[st
         metrics=metrics,
         details=details,
         trace=trace or [],
+        trajectory=trajectory,
     )
 
 
@@ -460,6 +475,151 @@ class _FailingVideoProvider:
         return VideoTaskStatus(state="failed", error_code="API_SERVER_ERROR", error_message="模拟视频失败")
 
 
+class _TrajectoryLLMProvider:
+    """带轨迹录制的 LLM Provider 包装器。"""
+
+    def __init__(self, ctx: EvalContext, task_id: str, original) -> None:
+        self.ctx = ctx
+        self.task_id = task_id
+        self.original = original
+
+    @property
+    def name(self) -> str:
+        return self.original.name
+
+    def complete(self, request: LLMRequest):
+        start = time.perf_counter()
+        result = self.original.complete(request)
+        latency_ms = (time.perf_counter() - start) * 1000
+        self.ctx.record_trajectory(
+            self.task_id,
+            TrajectoryStep(
+                agent="llm",
+                action="complete",
+                params={"system_prompt": request.system_prompt[:50]},
+                result=result.text[:80],
+                ok=True,
+                cost=float(result.cost),
+                latency_ms=latency_ms,
+            ),
+        )
+        return result
+
+
+class _TrajectoryImageProvider:
+    """带轨迹录制的文生图 Provider 包装器。"""
+
+    def __init__(self, ctx: EvalContext, task_id: str, original) -> None:
+        self.ctx = ctx
+        self.task_id = task_id
+        self.original = original
+
+    @property
+    def name(self) -> str:
+        return self.original.name
+
+    def generate_image(self, request: ImageGenerationRequest):
+        start = time.perf_counter()
+        result = self.original.generate_image(request)
+        latency_ms = (time.perf_counter() - start) * 1000
+        self.ctx.record_trajectory(
+            self.task_id,
+            TrajectoryStep(
+                agent="image",
+                action="generate_image",
+                params={"prompt": request.prompt[:50], "reference_count": len(request.reference_image_urls)},
+                result=result.image_url[:80],
+                ok=True,
+                cost=float(result.cost),
+                latency_ms=latency_ms,
+            ),
+        )
+        return result
+
+
+class _TrajectoryVideoProvider:
+    """带轨迹录制的视频 Provider 包装器。"""
+
+    def __init__(self, ctx: EvalContext, task_id: str, original) -> None:
+        self.ctx = ctx
+        self.task_id = task_id
+        self.original = original
+
+    @property
+    def name(self) -> str:
+        return self.original.name
+
+    def submit_video_task(self, request: VideoGenerationRequest):
+        start = time.perf_counter()
+        handle = self.original.submit_video_task(request)
+        latency_ms = (time.perf_counter() - start) * 1000
+        self.ctx.record_trajectory(
+            self.task_id,
+            TrajectoryStep(
+                agent="video",
+                action="submit_video_task",
+                params={
+                    "duration": request.duration,
+                    "aspect_ratio": request.aspect_ratio,
+                    "has_first_frame": bool(request.first_frame_url),
+                    "reference_count": len(request.reference_image_urls),
+                },
+                result=f"handle={handle.external_task_id}",
+                ok=True,
+                latency_ms=latency_ms,
+            ),
+        )
+        return handle
+
+    def query_video_task(self, handle: VideoTaskHandle):
+        start = time.perf_counter()
+        status = self.original.query_video_task(handle)
+        latency_ms = (time.perf_counter() - start) * 1000
+        self.ctx.record_trajectory(
+            self.task_id,
+            TrajectoryStep(
+                agent="video",
+                action="query_video_task",
+                params={"external_task_id": handle.external_task_id},
+                result=f"state={status.state}",
+                ok=status.state in {"succeeded", "processing"},
+                latency_ms=latency_ms,
+            ),
+        )
+        return status
+
+
+class _TrajectoryTTSProvider:
+    """带轨迹录制的 TTS Provider 包装器。"""
+
+    def __init__(self, ctx: EvalContext, task_id: str, original) -> None:
+        self.ctx = ctx
+        self.task_id = task_id
+        self.original = original
+
+    @property
+    def name(self) -> str:
+        return self.original.name
+
+    def synthesize(self, request):
+        start = time.perf_counter()
+        result = self.original.synthesize(request)
+        latency_ms = (time.perf_counter() - start) * 1000
+        self.ctx.record_trajectory(
+            self.task_id,
+            TrajectoryStep(
+                agent="tts",
+                action="synthesize",
+                params={"voice_id": request.voice_id},
+                result=result.audio_url[:80],
+                ok=True,
+                cost=float(result.cost),
+                latency_ms=latency_ms,
+            ),
+        )
+        return result
+
+
 def _case_simple_audio_failure_nonblocking(ctx: EvalContext) -> EvalOutcome:
     """调度 Agent（Simple）：TTS 失败不应阻塞主流程完成。"""
     original = registry.tts_providers
@@ -572,6 +732,122 @@ def _case_langgraph_video_failure_marks_failed(ctx: EvalContext) -> EvalOutcome:
         db.close()
 
 
+def _case_trajectory_golden(ctx: EvalContext) -> EvalOutcome:
+    """轨迹评测：完整流水线的实际轨迹应与黄金轨迹匹配。"""
+    original_llm = registry.llm_providers
+    original_image = registry.image_providers
+    original_video = registry.video_providers
+    original_tts = registry.tts_providers
+    db = ctx.db_session()
+    try:
+        task = VideoTask(user_id=1, prompt="一只猫在夕阳下奔跑", status="pending", duration=5, aspect_ratio="16:9")
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        run_id = str(task.id)
+
+        registry.llm_providers = {"mock": _TrajectoryLLMProvider(ctx, run_id, original_llm["mock"])}
+        registry.image_providers = {"mock": _TrajectoryImageProvider(ctx, run_id, original_image["mock"])}
+        registry.video_providers = {"mock": _TrajectoryVideoProvider(ctx, run_id, original_video["mock"])}
+        registry.tts_providers = {"mock": _TrajectoryTTSProvider(ctx, run_id, original_tts["mock"])}
+
+        SimpleTaskOrchestrator().run(task.id)
+
+        trajectory = next((item for item in ctx.trajectories if item.task_id == run_id), None)
+        if trajectory is None:
+            return _outcome(False, 0.0, {}, "未捕获到任何轨迹", ["trajectory is None"])
+
+        golden = Trajectory(
+            task_id="golden",
+            steps=[
+                TrajectoryStep(agent="llm", action="complete"),
+                TrajectoryStep(agent="image", action="generate_image"),
+                TrajectoryStep(agent="video", action="submit_video_task"),
+                TrajectoryStep(agent="tts", action="synthesize"),
+            ],
+        )
+        similarity = trajectory_similarity(trajectory, golden)
+        tool_ok, tool_score, tool_issues = validate_tool_use(
+            trajectory,
+            [
+                {"agent": "llm", "action": "complete", "params_contains": {"system_prompt": "你是一个短视频导演。"}},
+                {"agent": "image", "action": "generate_image", "params_contains": {"reference_count": 0}},
+                {"agent": "video", "action": "submit_video_task", "params_contains": {"duration": 5, "has_first_frame": True}},
+                {"agent": "tts", "action": "synthesize", "params_contains": {"voice_id": "female_01"}},
+            ],
+        )
+        ok = similarity >= 0.8 and tool_ok
+        return _outcome(
+            ok=ok,
+            score=similarity if ok else similarity * 0.5,
+            metrics={"trajectory_similarity": similarity, "tool_use_score": tool_score, "trajectory_steps": float(len(trajectory.steps))},
+            details=f"轨迹相似度：{similarity:.2f}，工具调用得分：{tool_score:.2f}",
+            trace=format_trajectory(trajectory),
+            trajectory=trajectory.to_dict()["steps"],
+        )
+    finally:
+        registry.llm_providers = original_llm
+        registry.image_providers = original_image
+        registry.video_providers = original_video
+        registry.tts_providers = original_tts
+        db.close()
+
+
+def _case_tool_use_correctness(ctx: EvalContext) -> EvalOutcome:
+    """工具调用正确性：参考图应传给文生图，首帧与参考图应传给视频生成。"""
+    original_llm = registry.llm_providers
+    original_image = registry.image_providers
+    original_video = registry.video_providers
+    original_tts = registry.tts_providers
+    db = ctx.db_session()
+    try:
+        task = VideoTask(
+            user_id=1,
+            prompt="带参考图的角色任务",
+            status="pending",
+            duration=5,
+            aspect_ratio="16:9",
+            reference_image_urls=["https://example.com/ref.png"],
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        run_id = str(task.id)
+
+        registry.llm_providers = {"mock": _TrajectoryLLMProvider(ctx, run_id, original_llm["mock"])}
+        registry.image_providers = {"mock": _TrajectoryImageProvider(ctx, run_id, original_image["mock"])}
+        registry.video_providers = {"mock": _TrajectoryVideoProvider(ctx, run_id, original_video["mock"])}
+        registry.tts_providers = {"mock": _TrajectoryTTSProvider(ctx, run_id, original_tts["mock"])}
+
+        SimpleTaskOrchestrator().run(task.id)
+
+        trajectory = next((item for item in ctx.trajectories if item.task_id == run_id), None)
+        if trajectory is None:
+            return _outcome(False, 0.0, {}, "未捕获到任何轨迹", ["trajectory is None"])
+
+        ok, score, issues = validate_tool_use(
+            trajectory,
+            [
+                {"agent": "image", "action": "generate_image", "params_contains": {"reference_count": 1}},
+                {"agent": "video", "action": "submit_video_task", "params_contains": {"has_first_frame": True, "reference_count": 1}},
+            ],
+        )
+        return _outcome(
+            ok=ok,
+            score=score,
+            metrics={"tool_use_score": score, "trajectory_steps": float(len(trajectory.steps))},
+            details=f"工具调用得分：{score:.2f}",
+            trace=issues or format_trajectory(trajectory),
+            trajectory=trajectory.to_dict()["steps"],
+        )
+    finally:
+        registry.llm_providers = original_llm
+        registry.image_providers = original_image
+        registry.video_providers = original_video
+        registry.tts_providers = original_tts
+        db.close()
+
+
 def build_agent_cases() -> list[EvalCase]:
     """构建 Agent 能力评测用例集。"""
     return [
@@ -582,6 +858,8 @@ def build_agent_cases() -> list[EvalCase]:
             target="prompt_agent",
             description="验证 LLM Provider 能返回优化后的提示词并保留核心语义。",
             fn=_case_prompt_agent,
+            latency_budget_ms=5000,
+            cost_budget=0.1,
         ),
         EvalCase(
             id="agent.image",
@@ -598,6 +876,8 @@ def build_agent_cases() -> list[EvalCase]:
             target="video_gen_agent",
             description="验证视频 Provider 能提交任务并轮询到成功状态。",
             fn=_case_video_agent,
+            latency_budget_ms=15000,
+            cost_budget=0.1,
         ),
         EvalCase(
             id="agent.audio",
@@ -638,6 +918,8 @@ def build_agent_cases() -> list[EvalCase]:
             target="orchestrator",
             description="验证 SimpleTaskOrchestrator 能端到端完成视频生成。",
             fn=_case_simple_orchestrator,
+            latency_budget_ms=10000,
+            cost_budget=0.1,
         ),
         EvalCase(
             id="agent.orchestrator.langgraph",
@@ -656,4 +938,24 @@ def build_agent_cases() -> list[EvalCase]:
         EvalCase(id="agent.orchestrator.simple_subtitle_failure_nonblocking", name="调度 Agent（Simple）字幕失败不阻塞", category="agent", target="orchestrator", description="字幕失败时任务仍应完成且字幕为空。", fn=_case_simple_subtitle_failure_nonblocking),
         EvalCase(id="agent.orchestrator.simple_video_failure_marks_failed", name="调度 Agent（Simple）视频失败标记失败", category="agent", target="orchestrator", description="真实视频失败应标记任务失败而不是占位完成。", fn=_case_simple_video_failure_marks_failed),
         EvalCase(id="agent.orchestrator.langgraph_video_failure_marks_failed", name="调度 Agent（LangGraph）视频失败标记失败", category="agent", target="orchestrator", description="LangGraph 视频失败应标记任务失败。", fn=_case_langgraph_video_failure_marks_failed),
+        EvalCase(
+            id="agent.trajectory.golden",
+            name="轨迹评测-黄金轨迹对比",
+            category="agent",
+            target="orchestrator",
+            description="完整流水线实际轨迹应与黄金轨迹匹配，并校验关键工具调用。",
+            fn=_case_trajectory_golden,
+            latency_budget_ms=10000,
+            cost_budget=0.1,
+        ),
+        EvalCase(
+            id="agent.tool_use.correctness",
+            name="工具调用正确性",
+            category="agent",
+            target="orchestrator",
+            description="参考图应传给文生图，首帧与参考图应传给视频生成。",
+            fn=_case_tool_use_correctness,
+            latency_budget_ms=10000,
+            cost_budget=0.1,
+        ),
     ]
