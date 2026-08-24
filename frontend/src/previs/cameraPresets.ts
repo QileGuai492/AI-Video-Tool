@@ -1,6 +1,7 @@
 import type { Vec3 } from "./types";
 
 export type CameraPreset = "dolly_in" | "dolly_out" | "pan_left" | "pan_right" | "truck_left" | "truck_right" | "orbit";
+export type CameraViewPreset = "front" | "back" | "left" | "right" | "top" | "perspective";
 
 function add(a: Vec3, b: Vec3): Vec3 {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -71,4 +72,35 @@ export const CAMERA_PRESET_LABELS: { value: CameraPreset; label: string }[] = [
   { value: "truck_left", label: "左移" },
   { value: "truck_right", label: "右移" },
   { value: "orbit", label: "环绕" },
+];
+
+const VIEW_DISTANCE = 8;
+
+/** 根据视角预设计算相机位置，保持当前目标点不变。 */
+export function applyCameraView(preset: CameraViewPreset, target: Vec3): { position: Vec3; target: Vec3 } {
+  const [tx, ty, tz] = target;
+  switch (preset) {
+    case "front":
+      return { position: [tx, ty + 1, tz + VIEW_DISTANCE], target: [tx, ty, tz] };
+    case "back":
+      return { position: [tx, ty + 1, tz - VIEW_DISTANCE], target: [tx, ty, tz] };
+    case "left":
+      return { position: [tx - VIEW_DISTANCE, ty + 1, tz], target: [tx, ty, tz] };
+    case "right":
+      return { position: [tx + VIEW_DISTANCE, ty + 1, tz], target: [tx, ty, tz] };
+    case "top":
+      return { position: [tx, ty + VIEW_DISTANCE, tz + 0.01], target: [tx, ty, tz] };
+    case "perspective":
+    default:
+      return { position: [tx + 5, ty + 4, tz + 5], target: [tx, ty, tz] };
+  }
+}
+
+export const CAMERA_VIEW_LABELS: { value: CameraViewPreset; label: string }[] = [
+  { value: "front", label: "前视图" },
+  { value: "back", label: "后视图" },
+  { value: "left", label: "左视图" },
+  { value: "right", label: "右视图" },
+  { value: "top", label: "顶视图" },
+  { value: "perspective", label: "透视" },
 ];

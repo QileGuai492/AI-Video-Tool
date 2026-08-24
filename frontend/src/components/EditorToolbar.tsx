@@ -1,7 +1,14 @@
 import { Button, Space, Typography, message } from "antd";
 import { useRef } from "react";
-import { cameraRef } from "../previs/cameraRef";
-import { applyCameraPreset, CAMERA_PRESET_LABELS, type CameraPreset } from "../previs/cameraPresets";
+import { cameraRef, setCameraView } from "../previs/cameraRef";
+import {
+  applyCameraPreset,
+  applyCameraView,
+  CAMERA_PRESET_LABELS,
+  CAMERA_VIEW_LABELS,
+  type CameraPreset,
+  type CameraViewPreset,
+} from "../previs/cameraPresets";
 import { usePrevisStore } from "../previs/store";
 import type { ObjectType, SceneState } from "../previs/types";
 
@@ -57,6 +64,18 @@ export default function EditorToolbar({
     addCameraKeyframe(currentTime, next.position, next.target);
     const label = CAMERA_PRESET_LABELS.find((item) => item.value === preset)?.label ?? preset;
     message.success(`已应用运镜预设「${label}」并记录关键帧：${currentTime.toFixed(1)}s`);
+  };
+
+  const handleCameraView = (view: CameraViewPreset) => {
+    const next = applyCameraView(view, cameraRef.target);
+    setCameraView(next);
+    const label = CAMERA_VIEW_LABELS.find((item) => item.value === view)?.label ?? view;
+    message.success(`已切换视角：${label}`);
+  };
+
+  const handleResetCamera = () => {
+    setCameraView({ position: [5, 4, 5], target: [0, 0, 0] });
+    message.success("已重置视角");
   };
 
   const handleImport = (file: File) => {
@@ -125,6 +144,19 @@ export default function EditorToolbar({
                   {item.label}
                 </Button>
               ))}
+            </Space>
+          </Space>
+          <Space style={{ width: "100%", marginBottom: 8 }}>
+            <Text type="secondary" style={{ width: 64 }}>视角</Text>
+            <Space wrap>
+              {CAMERA_VIEW_LABELS.map((item) => (
+                <Button key={item.value} size="small" onClick={() => handleCameraView(item.value)}>
+                  {item.label}
+                </Button>
+              ))}
+              <Button size="small" onClick={handleResetCamera}>
+                重置视角
+              </Button>
             </Space>
           </Space>
         </>

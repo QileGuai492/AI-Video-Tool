@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
-import { cameraRef } from "../previs/cameraRef";
+import { cameraRef, onCameraView } from "../previs/cameraRef";
 import { usePrevisStore } from "../previs/store";
 import type { ObjectType, Vec3 } from "../previs/types";
 
@@ -175,6 +175,14 @@ export default function PrevisCanvas({
     controls.enableDamping = true;
     controlsRef.current = controls;
 
+    const unsubscribeCameraView = onCameraView((view) => {
+      camera.position.set(...view.position);
+      controls.target.set(...view.target);
+      controls.update();
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+    });
+
     const transform = new TransformControls(camera, renderer.domElement);
     transform.addEventListener("change", () => renderer.render(scene, camera));
     transform.addEventListener("dragging-changed", (event) => {
@@ -249,6 +257,7 @@ export default function PrevisCanvas({
 
     return () => {
       cancelAnimationFrame(animationId);
+      unsubscribeCameraView();
       window.removeEventListener("resize", handleResize);
       transform.dispose();
       controls.dispose();

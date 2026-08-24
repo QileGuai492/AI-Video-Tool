@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     orchestrator_backend: str = "simple"  # simple / langgraph
     # 视频模型限流：同一任务间隔秒数（如 1 次/分钟 = 60）
     video_task_interval_seconds: int = 60
+    # 多镜头并发生成最大并发数
+    video_segment_concurrency: int = 4
 
     # 视频后处理（超分 / 插帧 / 锐化）
     video_postprocess_enabled: bool = False

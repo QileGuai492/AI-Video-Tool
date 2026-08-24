@@ -425,7 +425,7 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                                 frame_path.unlink(missing_ok=True)
         else:
             with ThreadPoolExecutor(
-                max_workers=min(segment_count, MAX_PARALLEL_SEGMENTS)
+                max_workers=min(segment_count, get_settings().video_segment_concurrency)
             ) as executor:
                 futures = [
                     executor.submit(generate_segment, i, first_frame_url)
