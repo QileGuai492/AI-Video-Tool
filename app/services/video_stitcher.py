@@ -150,6 +150,40 @@ def extract_last_frame(video_path: Path, output_path: Path) -> Path:
     return output_path
 
 
+def extract_frame_at(video_path: Path, output_path: Path, timestamp: float = 0.1) -> Path:
+    """从视频指定时间点提取一帧为 JPG。"""
+    ffmpeg = _get_ffmpeg_executable()
+    command = [
+        ffmpeg,
+        "-y",
+        "-ss",
+        f"{timestamp:.3f}",
+        "-i",
+        str(video_path.resolve()),
+        "-frames:v",
+        "1",
+        "-q:v",
+        "2",
+        str(output_path.resolve()),
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+        )
+    except FileNotFoundError as exc:
+        raise StitchingError("未找到 ffmpeg，请先安装 FFmpeg") from exc
+
+    if result.returncode != 0 or not output_path.exists():
+        raise StitchingError(f"FFmpeg 抽帧失败：{(result.stderr or '')[-500:]}")
+
+    return output_path
+
+
 def burn_subtitle(video_path: Path, srt_path: Path, output_path: Path) -> Path:
     """把 SRT 字幕烧录到视频中。
 

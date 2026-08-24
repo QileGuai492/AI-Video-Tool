@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     video_interpolate_factor: int = 2
     video_sharpen: bool = True
 
+    # 角色一致性检查（可选，需要支持图片的 LLM）
+    character_consistency_check_enabled: bool = False
+    character_consistency_threshold: float = 0.6
+
     # 本地开发自动建表（生产环境应使用 Alembic）
     auto_create_tables: bool = True
 

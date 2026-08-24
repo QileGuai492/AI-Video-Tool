@@ -29,6 +29,7 @@ from app.models import (
 from app.providers.base import ImageGenerationRequest, LLMRequest, VideoGenerationRequest
 from app.providers.registry import registry
 from app.services.audio_service import generate_tts_audio
+from app.services.character_consistency import evaluate_character_consistency
 from app.services.media_download import download_and_store_video
 from app.services.postprocess_service import postprocess_video
 from app.services.previs_service import (
@@ -445,6 +446,16 @@ class SimpleTaskOrchestrator:
                     logger.warning("视频后处理失败，保留原视频", exc_info=True)
                 finally:
                     enhanced_output.unlink(missing_ok=True)
+
+            # 7. 可选角色一致性检查（失败/不可用仅告警）
+            if (
+                get_settings().character_consistency_check_enabled
+                and reference_image_urls
+                and final_video_url
+            ):
+                report = evaluate_character_consistency(reference_image_urls, final_video_url)
+                if report is not None and not report.passed:
+                    logger.warning("角色一致性检查未通过：%s", report.reason)
 
             task.video_url = final_video_url
             task.status = "completed"

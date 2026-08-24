@@ -5,6 +5,7 @@ from pathlib import Path
 from app.services.video_stitcher import (
     StitchingError,
     build_concat_file,
+    extract_frame_at,
     extract_last_frame,
     merge_audio,
     stitch_videos,
@@ -103,6 +104,18 @@ def test_extract_last_frame(local_tmp_path: Path) -> None:
     output = local_tmp_path / "last_frame.jpg"
 
     result = extract_last_frame(source, output)
+
+    assert result == output
+    assert output.exists()
+    assert output.stat().st_size > 0
+
+
+def test_extract_frame_at(local_tmp_path: Path) -> None:
+    """应能从视频指定时间点提取一帧为 JPG。"""
+    source = Path("app/providers/assets/mock_clip.mp4")
+    output = local_tmp_path / "frame.jpg"
+
+    result = extract_frame_at(source, output, timestamp=0.1)
 
     assert result == output
     assert output.exists()
