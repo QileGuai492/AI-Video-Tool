@@ -26,6 +26,7 @@ from app.providers.base import (
 from app.providers.registry import registry
 from app.services.audio_service import generate_tts_audio
 from app.services.character_consistency import evaluate_character_consistency
+from app.services.character_feature import build_character_feature_pack
 from app.services.media_download import download_and_store_video
 from app.services.postprocess_service import postprocess_video
 from app.services.previs_service import (
@@ -201,6 +202,7 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
             return {**state, "error": "任务不存在"}
 
         reference_image_urls: list[str] = list(task.reference_image_urls or [])
+        character_identity_text = ""
         if task.character_id is not None:
             character = db.query(Character).filter(Character.id == task.character_id).first()
             if character is not None:
@@ -211,6 +213,11 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
                     .all()
                 )
                 reference_image_urls.extend(view.image_url for view in multi_views)
+                feature_pack = build_character_feature_pack(db, character.id)
+                if feature_pack and feature_pack.description:
+                    character_identity_text += (
+                        f"；角色“{feature_pack.name}”的外貌特征：{feature_pack.description}"
+                    )
 
         if task.previs_video_url:
             # 白模只作为动作/镜头参考，首帧必须用真实生成图，避免成品保留白模外观
@@ -230,7 +237,7 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
             provider = registry.get_image_provider()
             result = provider.generate_image(
                 ImageGenerationRequest(
-                    prompt=state.get("optimized_prompt") or task.prompt,
+                    prompt=(state.get("optimized_prompt") or task.prompt) + character_identity_text,
                     reference_image_urls=reference_image_urls,
                 )
             )
@@ -254,7 +261,7 @@ def generate_first_frame(state: GenerationState) -> GenerationState:
         provider = registry.get_image_provider()
         result = provider.generate_image(
             ImageGenerationRequest(
-                prompt=state.get("optimized_prompt") or task.prompt,
+                prompt=(state.get("optimized_prompt") or task.prompt) + character_identity_text,
                 reference_image_urls=reference_image_urls,
             )
         )
@@ -289,6 +296,7 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
         placeholder_content = mock_clip_path.read_bytes() if mock_clip_path.exists() else b"mock-video"
         camera_shots = (task.camera_script or {}).get("shots", [])
         reference_image_urls: list[str] = list(task.reference_image_urls or [])
+        character_identity_text = ""
         if task.character_id is not None:
             character = db.query(Character).filter(Character.id == task.character_id).first()
             if character is not None:
@@ -299,6 +307,11 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                     .all()
                 )
                 reference_image_urls.extend(view.image_url for view in multi_views)
+                feature_pack = build_character_feature_pack(db, character.id)
+                if feature_pack and feature_pack.description:
+                    character_identity_text += (
+                        f"；角色“{feature_pack.name}”的外貌特征：{feature_pack.description}"
+                    )
         mapping_rules: dict[str, str] = {}
         if task.character_mappings:
             for mapping in task.character_mappings:
@@ -311,6 +324,11 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                     continue
                 reference_image_urls.append(character.reference_image_url)
                 mapping_rules[str(object_id)] = f"@图片{len(reference_image_urls)}的{character.name}"
+                feature_pack = build_character_feature_pack(db, character.id)
+                if feature_pack and feature_pack.description:
+                    character_identity_text += (
+                        f"；角色“{feature_pack.name}”的外貌特征：{feature_pack.description}"
+                    )
         layout_text = ""
         scene = task.previs_scene_json or {}
         if scene.get("objects"):
@@ -337,6 +355,8 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
             )
             if layout_text:
                 segment_prompt = f"{segment_prompt}；{layout_text}"
+            if character_identity_text:
+                segment_prompt = f"{segment_prompt}{character_identity_text}"
             request = VideoGenerationRequest(
                 prompt=segment_prompt,
                 first_frame_url=frame_url,

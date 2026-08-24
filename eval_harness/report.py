@@ -44,10 +44,12 @@ def generate_markdown(
     summary: EvalSummary,
     mode: str = "Mock 隔离模式",
     history: list[dict] | None = None,
+    stability: dict | None = None,
 ) -> str:
     """生成 Markdown 格式评测报告。"""
     results = list(results)
     history = history or []
+    stability = stability or {}
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     lines = [
@@ -86,7 +88,15 @@ def generate_markdown(
         "",
         _stats_table("按评测对象统计", summary.by_target),
         "",
-        "## 三、趋势对比",
+        "## 三、稳定性 / 方差",
+        "",
+        "| 指标 | 均值 | 标准差 |",
+        "| --- | ---: | ---: |",
+        f"| 通过率 | {_pct(float(stability.get('pass_rate_mean', 0.0)))} | {float(stability.get('pass_rate_std', 0.0)):.4f} |",
+        f"| 平均得分 | {float(stability.get('avg_score_mean', 0.0)):.3f} | {float(stability.get('avg_score_std', 0.0)):.4f} |",
+        f"| 总耗时(ms) | {float(stability.get('duration_mean_ms', 0.0)):.0f} | {float(stability.get('duration_std_ms', 0.0)):.0f} |",
+        "",
+        "## 四、趋势对比",
         "",
         "| 时间 | 模式 | 总数 | 通过 | 失败 | 通过率 | 平均分 | 总耗时(ms) |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -104,7 +114,7 @@ def generate_markdown(
     lines.extend(
         [
             "",
-            "## 四、用例明细",
+            "## 五、用例明细",
             "",
             "| ID | 分类 | 对象 | 用例 | 结果 | 得分 | 耗时(ms) | 说明 |",
             "| --- | --- | --- | --- | --- | ---: | ---: | --- |",
@@ -120,7 +130,7 @@ def generate_markdown(
             f"| {result.outcome.details.replace('|', '/')[:80]} |"
         )
 
-    lines.extend(["", "## 五、失败与异常详情", ""])
+    lines.extend(["", "## 六、失败与异常详情", ""])
     failures = [r for r in results if r.outcome.status in {"fail", "error"}]
     if not failures:
         lines.append("无失败用例。")
@@ -142,7 +152,7 @@ def generate_markdown(
 
     trajectory_results = [r for r in results if r.outcome.trajectory]
     if trajectory_results:
-        lines.extend(["", "## 六、轨迹明细", ""])
+        lines.extend(["", "## 七、轨迹明细", ""])
         for result in trajectory_results:
             lines.extend(
                 [
@@ -162,7 +172,7 @@ def generate_markdown(
 
     lines.extend(
         [
-            "## 七、结论与建议",
+            "## 八、结论与建议",
             "",
             f"当前在 {mode} 下共执行 {summary.total} 个用例，通过率 {_pct(summary.pass_rate)}，"
             f"平均得分 {summary.avg_score:.2f}。",

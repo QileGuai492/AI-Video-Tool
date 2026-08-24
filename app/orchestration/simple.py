@@ -30,6 +30,7 @@ from app.providers.base import ImageGenerationRequest, LLMRequest, VideoGenerati
 from app.providers.registry import registry
 from app.services.audio_service import generate_tts_audio
 from app.services.character_consistency import evaluate_character_consistency
+from app.services.character_feature import build_character_feature_pack
 from app.services.media_download import download_and_store_video
 from app.services.postprocess_service import postprocess_video
 from app.services.previs_service import (
@@ -131,6 +132,7 @@ class SimpleTaskOrchestrator:
                 db, task.character_id
             )
             mapping_rules: dict[str, str] = {}
+            character_identity_text = ""
             if task.character_mappings:
                 for mapping in task.character_mappings:
                     object_id = mapping.get("object_id")
@@ -146,6 +148,11 @@ class SimpleTaskOrchestrator:
                         continue
                     reference_image_urls.append(character.reference_image_url)
                     mapping_rules[str(object_id)] = f"@图片{len(reference_image_urls)}的{character.name}"
+                    feature_pack = build_character_feature_pack(db, character.id)
+                    if feature_pack and feature_pack.description:
+                        character_identity_text += (
+                            f"；角色“{feature_pack.name}”的外貌特征：{feature_pack.description}"
+                        )
             layout_text = ""
             scene = task.previs_scene_json or {}
             if scene.get("objects"):
@@ -180,7 +187,7 @@ class SimpleTaskOrchestrator:
                     image_provider = registry.get_image_provider()
                     image_result = image_provider.generate_image(
                         ImageGenerationRequest(
-                            prompt=task.optimized_prompt or task.prompt,
+                            prompt=(task.optimized_prompt or task.prompt) + character_identity_text,
                             reference_image_urls=reference_image_urls,
                         )
                     )
@@ -201,7 +208,7 @@ class SimpleTaskOrchestrator:
                 image_provider = registry.get_image_provider()
                 image_result = image_provider.generate_image(
                     ImageGenerationRequest(
-                        prompt=task.optimized_prompt or task.prompt,
+                        prompt=(task.optimized_prompt or task.prompt) + character_identity_text,
                         reference_image_urls=reference_image_urls,
                     )
                 )
@@ -240,6 +247,8 @@ class SimpleTaskOrchestrator:
                 )
                 if layout_text:
                     segment_prompt = f"{segment_prompt}；{layout_text}"
+                if character_identity_text:
+                    segment_prompt = f"{segment_prompt}{character_identity_text}"
                 video_request = VideoGenerationRequest(
                     prompt=segment_prompt,
                     first_frame_url=frame_url,

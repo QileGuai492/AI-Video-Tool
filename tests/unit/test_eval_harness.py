@@ -105,3 +105,25 @@ def test_generate_markdown_contains_summary_and_details() -> None:
     assert "test.fail" in markdown
     assert "失败与异常详情" in markdown
     assert "通过率" in markdown
+
+
+def test_generate_markdown_contains_stability_section() -> None:
+    """报告应包含稳定性/方差统计。"""
+    ctx = FakeContext()
+    results, summary = run_cases([_pass_case()], ctx)
+    markdown = generate_markdown(
+        results,
+        summary,
+        stability={
+            "pass_rate_mean": 1.0,
+            "pass_rate_std": 0.0,
+            "avg_score_mean": 1.0,
+            "avg_score_std": 0.0,
+            "duration_mean_ms": 100.0,
+            "duration_std_ms": 10.0,
+        },
+    )
+
+    assert "稳定性 / 方差" in markdown
+    assert "通过率" in markdown
+    assert "标准差" in markdown

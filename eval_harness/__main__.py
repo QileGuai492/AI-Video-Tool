@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import shutil
+import statistics
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +16,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--report", default="logs/评测报告.md", help="报告输出路径")
     parser.add_argument("--clean", action="store_true", help="评测结束后清理 .eval_tmp 临时目录")
     parser.add_argument("--trend", action="store_true", help="记录历史趋势并输出趋势对比")
+    parser.add_argument("--runs", type=int, default=1, help="重复运行次数，用于稳定性/方差统计")
     return parser.parse_args()
 
 
@@ -39,14 +41,36 @@ def main() -> None:
     from eval_harness.report import generate_markdown
     from eval_harness.runner import run_cases
 
-    ctx = create_context()
     cases = build_agent_cases() + build_system_cases()
     if args.real:
         cases += build_real_smoke_cases()
     # LLM-as-Judge 默认纳入；未配置真实 LLM Key 时该用例会跳过
     cases += build_deep_cases()
 
-    results, summary = run_cases(cases, ctx)
+    runs = max(1, args.runs)
+    stability: dict | None = None
+    if runs > 1:
+        summaries: list = []
+        results = None
+        summary = None
+        for _ in range(runs):
+            run_ctx = create_context()
+            run_results, run_summary = run_cases(cases, run_ctx)
+            summaries.append(run_summary)
+            results = run_results
+            summary = run_summary
+        stability = {
+            "runs": runs,
+            "pass_rate_mean": statistics.mean(item.pass_rate for item in summaries),
+            "pass_rate_std": statistics.pstdev(item.pass_rate for item in summaries),
+            "avg_score_mean": statistics.mean(item.avg_score for item in summaries),
+            "avg_score_std": statistics.pstdev(item.avg_score for item in summaries),
+            "duration_mean_ms": statistics.mean(item.total_duration_ms for item in summaries),
+            "duration_std_ms": statistics.pstdev(item.total_duration_ms for item in summaries),
+        }
+    else:
+        ctx = create_context()
+        results, summary = run_cases(cases, ctx)
 
     mode = "Mock 隔离模式 + LLM-as-Judge"
     if args.real:
@@ -79,7 +103,10 @@ def main() -> None:
 
     report_path = Path(args.report)
     report_path.parent.mkdir(exist_ok=True)
-    report_path.write_text(generate_markdown(results, summary, mode=mode, history=history), encoding="utf-8")
+    report_path.write_text(
+        generate_markdown(results, summary, mode=mode, history=history, stability=stability),
+        encoding="utf-8",
+    )
 
     if args.clean:
         shutil.rmtree(".eval_tmp", ignore_errors=True)
