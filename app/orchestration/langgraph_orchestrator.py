@@ -26,6 +26,7 @@ from app.providers.base import (
 from app.providers.registry import registry
 from app.services.audio_service import generate_tts_audio
 from app.services.media_download import download_and_store_video
+from app.services.postprocess_service import postprocess_video
 from app.services.previs_service import (
     build_segment_prompt,
     extract_keyframes,
@@ -544,6 +545,23 @@ def post_process(state: GenerationState) -> GenerationState:
                     burned_output.unlink(missing_ok=True)
             except Exception:  # noqa: BLE001
                 logger.warning("字幕生成失败，保留原视频", exc_info=True)
+
+        # 可选后处理：超分 / 插帧 / 锐化
+        if (
+            get_settings().video_postprocess_enabled
+            and final_video_url
+            and final_video_url.startswith("/uploads/")
+        ):
+            source_video = Path("uploads") / final_video_url.removeprefix("/uploads/")
+            enhanced_output = tmp_dir / f"enhanced_{uuid.uuid4().hex}.mp4"
+            try:
+                postprocess_video(source_video, enhanced_output)
+                key = storage.upload(content=enhanced_output.read_bytes(), suffix="mp4", folder="videos")
+                final_video_url = storage.get_url(key)
+            except Exception:  # noqa: BLE001
+                logger.warning("视频后处理失败，保留原视频", exc_info=True)
+            finally:
+                enhanced_output.unlink(missing_ok=True)
     finally:
         db.close()
 

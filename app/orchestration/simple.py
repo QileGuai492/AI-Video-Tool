@@ -15,6 +15,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.time import utc_now
 from app.db.session import SessionLocal
 from app.models import (
@@ -29,6 +30,7 @@ from app.providers.base import ImageGenerationRequest, LLMRequest, VideoGenerati
 from app.providers.registry import registry
 from app.services.audio_service import generate_tts_audio
 from app.services.media_download import download_and_store_video
+from app.services.postprocess_service import postprocess_video
 from app.services.previs_service import (
     build_segment_prompt,
     extract_keyframes,
@@ -420,6 +422,29 @@ class SimpleTaskOrchestrator:
                             burned_output.unlink(missing_ok=True)
                 except Exception:  # noqa: BLE001
                     task.subtitle_url = None
+
+            # 6. 可选后处理：超分 / 插帧 / 锐化
+            if (
+                get_settings().video_postprocess_enabled
+                and final_video_url
+                and final_video_url.startswith("/uploads/")
+            ):
+                tmp_dir = Path("uploads/tmp")
+                tmp_dir.mkdir(parents=True, exist_ok=True)
+                source_video = Path("uploads") / final_video_url.removeprefix("/uploads/")
+                enhanced_output = tmp_dir / f"enhanced_{uuid.uuid4().hex}.mp4"
+                try:
+                    postprocess_video(source_video, enhanced_output)
+                    key = storage.upload(
+                        content=enhanced_output.read_bytes(),
+                        suffix="mp4",
+                        folder="videos",
+                    )
+                    final_video_url = storage.get_url(key)
+                except Exception:  # noqa: BLE001
+                    logger.warning("视频后处理失败，保留原视频", exc_info=True)
+                finally:
+                    enhanced_output.unlink(missing_ok=True)
 
             task.video_url = final_video_url
             task.status = "completed"

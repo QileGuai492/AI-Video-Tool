@@ -74,6 +74,12 @@ class Settings(BaseSettings):
     # 任务编排
     orchestrator_backend: str = "simple"  # simple / langgraph
 
+    # 视频后处理（超分 / 插帧 / 锐化）
+    video_postprocess_enabled: bool = False
+    video_target_resolution: str = "1080p"  # 720p / 1080p / 2160p
+    video_interpolate_factor: int = 2
+    video_sharpen: bool = True
+
     # 本地开发自动建表（生产环境应使用 Alembic）
     auto_create_tables: bool = True
 
