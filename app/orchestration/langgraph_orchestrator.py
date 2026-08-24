@@ -4,6 +4,7 @@
 优化提示词 → 首帧 → 视频片段 → 音频 → 字幕 → 后处理 → 质量检查 → 完成。
 """
 
+import logging
 import re
 import time
 import uuid
@@ -33,11 +34,19 @@ from app.services.previs_service import (
 from app.services.quality_service import evaluate_video, evaluate_video_with_vlm
 from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
-from app.services.video_stitcher import StitchingError, stitch_videos
+from app.services.video_stitcher import (
+    StitchingError,
+    burn_subtitle,
+    extract_last_frame,
+    merge_audio,
+    stitch_videos,
+)
 from app.storage import storage
 
 # 单个长视频任务内并行生成短视频片段的最大并发数
 MAX_PARALLEL_SEGMENTS = 4
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_speech_text(task: VideoTask) -> str:
@@ -317,8 +326,7 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                     "空间布局：" + "；".join(layout_parts) + "；保持左右方向不变，不要镜像翻转"
                 )
 
-        def generate_segment(index: int) -> tuple[int, str, str]:
-            frame_url = state.get("first_frame_url")
+        def generate_segment(index: int, frame_url: str | None) -> tuple[int, str, str]:
             shot = camera_shots[index] if index < len(camera_shots) else None
             segment_prompt = build_segment_prompt(
                 state.get("optimized_prompt") or task.prompt,
@@ -346,14 +354,57 @@ def generate_video_segments(state: GenerationState) -> GenerationState:
                 video_url = _wait_for_real_video(provider, handle)
             return index, segment_prompt, video_url
 
+        def ensure_local_segment(segment_url: str) -> Path | None:
+            """把片段 URL 转为本地路径，供尾帧提取使用。"""
+            if segment_url.startswith("/uploads/"):
+                return Path("uploads") / segment_url.removeprefix("/uploads/")
+            downloaded = download_and_store_video(segment_url)
+            if downloaded and downloaded.startswith("/uploads/"):
+                return Path("uploads") / downloaded.removeprefix("/uploads/")
+            return None
+
+        use_consistency_chain = bool(
+            segment_count > 1
+            and (task.character_id is not None or task.character_mappings or task.reference_image_urls)
+        )
         segment_results: list[tuple[str, str] | None] = [None] * segment_count
-        with ThreadPoolExecutor(
-            max_workers=min(segment_count, MAX_PARALLEL_SEGMENTS)
-        ) as executor:
-            futures = [executor.submit(generate_segment, i) for i in range(segment_count)]
-            for future in as_completed(futures):
-                index, segment_prompt, video_url = future.result()
+        first_frame_url = state.get("first_frame_url")
+        if use_consistency_chain:
+            current_frame_url = first_frame_url
+            for index in range(segment_count):
+                _, segment_prompt, video_url = generate_segment(index, current_frame_url)
                 segment_results[index] = (segment_prompt, video_url)
+                if index < segment_count - 1:
+                    local_segment = ensure_local_segment(video_url)
+                    if local_segment is not None:
+                        frame_path: Path | None = None
+                        try:
+                            tmp_dir = Path("uploads/tmp")
+                            tmp_dir.mkdir(parents=True, exist_ok=True)
+                            frame_path = tmp_dir / f"tail_{uuid.uuid4().hex}.jpg"
+                            extract_last_frame(local_segment, frame_path)
+                            key = storage.upload(
+                                content=frame_path.read_bytes(),
+                                suffix="jpg",
+                                folder="frames",
+                            )
+                            current_frame_url = storage.get_url(key)
+                        except Exception:  # noqa: BLE001
+                            logger.warning("尾帧提取失败，继续使用当前首帧", exc_info=True)
+                        finally:
+                            if frame_path is not None:
+                                frame_path.unlink(missing_ok=True)
+        else:
+            with ThreadPoolExecutor(
+                max_workers=min(segment_count, MAX_PARALLEL_SEGMENTS)
+            ) as executor:
+                futures = [
+                    executor.submit(generate_segment, i, first_frame_url)
+                    for i in range(segment_count)
+                ]
+                for future in as_completed(futures):
+                    index, segment_prompt, video_url = future.result()
+                    segment_results[index] = (segment_prompt, video_url)
 
         segment_urls = [url for _, url in segment_results]
         for index, (segment_prompt, video_url) in enumerate(segment_results):
@@ -424,7 +475,7 @@ def generate_subtitle_node(state: GenerationState) -> GenerationState:
 
 
 def post_process(state: GenerationState) -> GenerationState:
-    """拼接片段并生成成片。"""
+    """拼接片段、替换 TTS 音轨并烧录字幕，生成最终成片。"""
     _update_task_status(state["task_id"], "post_processing")
     segment_urls = state.get("segment_urls", [])
     local_paths: list[Path] = []
@@ -450,6 +501,51 @@ def post_process(state: GenerationState) -> GenerationState:
     elif local_paths:
         # 只有部分片段可本地化时，回退到第一个本地片段
         final_video_url = local_paths[0].as_posix().replace("uploads/", "/uploads/")
+
+    db = SessionLocal()
+    try:
+        task = db.query(VideoTask).filter(VideoTask.id == state["task_id"]).first()
+        if task is None:
+            return {**state, "final_video_url": final_video_url}
+
+        tmp_dir = Path("uploads/tmp")
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+
+        # 把 TTS 配音替换进成片，避免保留视频模型自带音轨（可能是日语等）
+        if task.audio_url and task.audio_url.startswith("/uploads/") and final_video_url and final_video_url.startswith("/uploads/"):
+            audio_path = Path("uploads") / task.audio_url.removeprefix("/uploads/")
+            source_video = Path("uploads") / final_video_url.removeprefix("/uploads/")
+            merged_output = tmp_dir / f"merged_{uuid.uuid4().hex}.mp4"
+            try:
+                merge_audio(source_video, audio_path, merged_output)
+                key = storage.upload(content=merged_output.read_bytes(), suffix="mp4", folder="videos")
+                final_video_url = storage.get_url(key)
+            except Exception:  # noqa: BLE001
+                logger.warning("音频合成失败，保留原视频音轨", exc_info=True)
+            finally:
+                merged_output.unlink(missing_ok=True)
+
+        # 按需烧录字幕
+        if task.with_subtitle:
+            try:
+                _, subtitle_content = generate_subtitle(_resolve_speech_text(task))
+                srt_path = tmp_dir / f"sub_{uuid.uuid4().hex}.srt"
+                srt_path.write_text(subtitle_content, encoding="utf-8")
+                source_video = Path("uploads") / final_video_url.removeprefix("/uploads/")
+                burned_output = tmp_dir / f"subbed_{uuid.uuid4().hex}.mp4"
+                try:
+                    burn_subtitle(source_video, srt_path, burned_output)
+                    key = storage.upload(content=burned_output.read_bytes(), suffix="mp4", folder="videos")
+                    final_video_url = storage.get_url(key)
+                except Exception:  # noqa: BLE001
+                    logger.warning("字幕烧录失败，保留原视频", exc_info=True)
+                finally:
+                    srt_path.unlink(missing_ok=True)
+                    burned_output.unlink(missing_ok=True)
+            except Exception:  # noqa: BLE001
+                logger.warning("字幕生成失败，保留原视频", exc_info=True)
+    finally:
+        db.close()
 
     return {**state, "final_video_url": final_video_url}
 
