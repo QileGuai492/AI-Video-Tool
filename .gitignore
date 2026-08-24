@@ -52,3 +52,4 @@ tmp/
 uploads/
 .coverage
 /*.mp4
+/*.webm
