@@ -62,7 +62,7 @@
 - [x] 工具调用正确性检查（Tool-Use Correctness）
 - [x] 成本 / 延迟预算门禁用例
 - [x] 趋势报告（历史对比）
-- [ ] LLM-as-Judge 常态化（当前 `--judge` 可选启用，未纳入默认 Mock）
+- [x] LLM-as-Judge 常态化（默认纳入，无真实 Key 时自动跳过）
 
 ## 4. 目录结构
 

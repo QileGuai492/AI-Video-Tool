@@ -11,7 +11,7 @@ from pathlib import Path
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Harness 评测 Agent")
     parser.add_argument("--real", action="store_true", help="包含真实 SiliconFlow API 冒烟评测")
-    parser.add_argument("--judge", action="store_true", help="包含 LLM-as-Judge 深度评测")
+    parser.add_argument("--judge", action="store_true", help="兼容旧参数：LLM-as-Judge 现已默认包含")
     parser.add_argument("--report", default="logs/评测报告.md", help="报告输出路径")
     parser.add_argument("--clean", action="store_true", help="评测结束后清理 .eval_tmp 临时目录")
     parser.add_argument("--trend", action="store_true", help="记录历史趋势并输出趋势对比")
@@ -43,16 +43,14 @@ def main() -> None:
     cases = build_agent_cases() + build_system_cases()
     if args.real:
         cases += build_real_smoke_cases()
-    if args.judge:
-        cases += build_deep_cases()
+    # LLM-as-Judge 默认纳入；未配置真实 LLM Key 时该用例会跳过
+    cases += build_deep_cases()
 
     results, summary = run_cases(cases, ctx)
 
-    mode = "Mock 隔离模式"
+    mode = "Mock 隔离模式 + LLM-as-Judge"
     if args.real:
-        mode = "Mock + 真实 API 冒烟模式"
-    if args.judge:
-        mode += " + LLM-as-Judge"
+        mode = "Mock + 真实 API 冒烟模式 + LLM-as-Judge"
 
     history: list[dict] = []
     history_path = Path("logs/eval_history.json")
