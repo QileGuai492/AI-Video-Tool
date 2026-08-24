@@ -73,6 +73,8 @@ class Settings(BaseSettings):
 
     # 任务编排
     orchestrator_backend: str = "simple"  # simple / langgraph
+    # 视频模型限流：同一任务间隔秒数（如 1 次/分钟 = 60）
+    video_task_interval_seconds: int = 60
 
     # 视频后处理（超分 / 插帧 / 锐化）
     video_postprocess_enabled: bool = False
@@ -83,6 +85,7 @@ class Settings(BaseSettings):
     # 角色一致性检查（可选，需要支持图片的 LLM）
     character_consistency_check_enabled: bool = False
     character_consistency_threshold: float = 0.6
+    character_consistency_max_retries: int = 1
 
     # 本地开发自动建表（生产环境应使用 Alembic）
     auto_create_tables: bool = True

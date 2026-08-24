@@ -456,7 +456,7 @@ class SimpleTaskOrchestrator:
                 finally:
                     enhanced_output.unlink(missing_ok=True)
 
-            # 7. 可选角色一致性检查（失败/不可用仅告警）
+            # 7. 可选角色一致性检查（失败可自动重试）
             if (
                 get_settings().character_consistency_check_enabled
                 and reference_image_urls
@@ -464,7 +464,36 @@ class SimpleTaskOrchestrator:
             ):
                 report = evaluate_character_consistency(reference_image_urls, final_video_url)
                 if report is not None and not report.passed:
-                    logger.warning("角色一致性检查未通过：%s", report.reason)
+                    retry_count = (
+                        db.query(TaskRetry)
+                        .filter(
+                            TaskRetry.task_id == task.id,
+                            TaskRetry.stage == "consistency_retry",
+                        )
+                        .count()
+                    )
+                    if retry_count < get_settings().character_consistency_max_retries:
+                        db.add(
+                            TaskRetry(
+                                task_id=task.id,
+                                user_id=task.user_id,
+                                stage="consistency_retry",
+                                attempt=retry_count + 1,
+                                error_code="CONSISTENCY_LOW",
+                                error_message=report.reason,
+                            )
+                        )
+                        task.status = "pending"
+                        db.commit()
+                        logger.warning("角色一致性未通过，已安排自动重试：%s", report.reason)
+                        from app.tasks.video_tasks import process_video_task
+
+                        process_video_task.apply_async(
+                            args=[task.id],
+                            countdown=get_settings().video_task_interval_seconds,
+                        )
+                        return
+                    logger.warning("角色一致性检查未通过且已达最大重试：%s", report.reason)
 
             task.video_url = final_video_url
             task.status = "completed"

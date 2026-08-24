@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import (
     AudioTrack,
@@ -56,7 +57,8 @@ def submit_batch_tasks(
     """批量提交多个视频生成任务。"""
     task_ids: list[int] = []
     task_uids: list[str] = []
-    for _ in range(payload.count):
+    interval = get_settings().video_task_interval_seconds
+    for index in range(payload.count):
         single = GenerateVideoRequest(
             prompt=payload.prompt,
             image_url=payload.image_url,
@@ -77,7 +79,8 @@ def submit_batch_tasks(
             camera_script=payload.camera_script,
         )
         task = create_video_task(db=db, user_id=current_user.id, request=single)
-        process_video_task.delay(task.id)
+        # 按模型限流错峰提交：第 1 个立即执行，后续每个间隔 interval 秒
+        process_video_task.apply_async(args=[task.id], countdown=index * interval)
         task_ids.append(task.id)
         task_uids.append(task.uid)
 
@@ -176,7 +179,10 @@ def retry_task(
     task.status = "pending"
     db.commit()
     db.refresh(task)
-    process_video_task.delay(task.id)
+    process_video_task.apply_async(
+        args=[task.id],
+        countdown=get_settings().video_task_interval_seconds,
+    )
     return task
 
 

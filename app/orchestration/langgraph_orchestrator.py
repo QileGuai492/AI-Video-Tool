@@ -17,7 +17,14 @@ from langgraph.graph import END, START, StateGraph
 from app.core.config import get_settings
 from app.core.time import utc_now
 from app.db.session import SessionLocal
-from app.models import Character, CharacterMultiView, GenerationLog, VideoSegment, VideoTask
+from app.models import (
+    Character,
+    CharacterMultiView,
+    GenerationLog,
+    TaskRetry,
+    VideoSegment,
+    VideoTask,
+)
 from app.providers.base import (
     ImageGenerationRequest,
     LLMRequest,
@@ -584,7 +591,7 @@ def post_process(state: GenerationState) -> GenerationState:
             finally:
                 enhanced_output.unlink(missing_ok=True)
 
-        # 可选角色一致性检查（失败/不可用仅告警）
+        # 可选角色一致性检查（失败可自动重试）
         if (
             get_settings().character_consistency_check_enabled
             and task.reference_image_urls
@@ -592,7 +599,30 @@ def post_process(state: GenerationState) -> GenerationState:
         ):
             report = evaluate_character_consistency(list(task.reference_image_urls), final_video_url)
             if report is not None and not report.passed:
-                logger.warning("角色一致性检查未通过：%s", report.reason)
+                retry_count = (
+                    db.query(TaskRetry)
+                    .filter(
+                        TaskRetry.task_id == task.id,
+                        TaskRetry.stage == "consistency_retry",
+                    )
+                    .count()
+                )
+                if retry_count < get_settings().character_consistency_max_retries:
+                    db.add(
+                        TaskRetry(
+                            task_id=task.id,
+                            user_id=task.user_id,
+                            stage="consistency_retry",
+                            attempt=retry_count + 1,
+                            error_code="CONSISTENCY_LOW",
+                            error_message=report.reason,
+                        )
+                    )
+                    task.status = "pending"
+                    db.commit()
+                    logger.warning("角色一致性未通过，已安排自动重试：%s", report.reason)
+                    raise RuntimeError("CONSISTENCY_LOW_RETRY")
+                logger.warning("角色一致性检查未通过且已达最大重试：%s", report.reason)
     finally:
         db.close()
 
