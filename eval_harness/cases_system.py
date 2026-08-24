@@ -85,17 +85,18 @@ def _case_generate_flow(ctx: EvalContext) -> EvalOutcome:
     if submit.status_code != 200:
         return _outcome(False, 0.0, {}, f"提交失败：{submit.text}")
 
-    task_id = submit.json()["id"]
+    task_uid = submit.json()["uid"]
     status = None
     for _ in range(10):
-        status = ctx.client.get(f"/api/v1/generate/status/{task_id}", headers=headers)
+        status = ctx.client.get(f"/api/v1/generate/status/{task_uid}", headers=headers)
         if status.status_code == 200 and status.json()["status"] in {"completed", "failed", "cancelled"}:
             break
         time.sleep(0.5)
 
-    download = ctx.client.get(f"/api/v1/generate/{task_id}/download", headers=headers)
+    download = ctx.client.get(f"/api/v1/generate/{task_uid}/download", headers=headers)
     checks = {
         "提交成功": submit.status_code == 200,
+        "返回 UID": bool(task_uid),
         "状态查询成功": status is not None and status.status_code == 200,
         "任务完成": status is not None and status.json().get("status") == "completed",
         "下载成功": download.status_code in {200, 307},
@@ -105,7 +106,7 @@ def _case_generate_flow(ctx: EvalContext) -> EvalOutcome:
         ok=score == 1.0,
         score=score,
         metrics={
-            "任务ID": float(task_id),
+            "任务UID": float(len(task_uid)),
             "提交耗时_ms": submit.elapsed.total_seconds() * 1000,
             "下载状态码": float(download.status_code),
         },
@@ -241,8 +242,8 @@ def _case_cancel_retry(ctx: EvalContext) -> EvalOutcome:
         db.commit()
         db.refresh(failed)
 
-        cancel = ctx.client.post(f"/api/v1/generate/{pending.id}/cancel", headers=headers)
-        retry = ctx.client.post(f"/api/v1/generate/{failed.id}/retry", headers=headers)
+        cancel = ctx.client.post(f"/api/v1/generate/{pending.uid}/cancel", headers=headers)
+        retry = ctx.client.post(f"/api/v1/generate/{failed.uid}/retry", headers=headers)
 
         checks = {
             "取消成功": cancel.status_code == 200 and cancel.json().get("status") == "cancelled",
@@ -377,7 +378,7 @@ def _case_generate_download_not_ready(ctx: EvalContext) -> EvalOutcome:
         db.add(task)
         db.commit()
         db.refresh(task)
-        response = ctx.client.get(f"/api/v1/generate/{task.id}/download", headers=headers)
+        response = ctx.client.get(f"/api/v1/generate/{task.uid}/download", headers=headers)
         ok = response.status_code == 404
         return _outcome(ok, 1.0 if ok else 0.0, {"状态码": float(response.status_code)}, f"状态码：{response.status_code}")
     finally:
@@ -393,7 +394,7 @@ def _case_generate_cancel_completed(ctx: EvalContext) -> EvalOutcome:
         db.add(task)
         db.commit()
         db.refresh(task)
-        response = ctx.client.post(f"/api/v1/generate/{task.id}/cancel", headers=headers)
+        response = ctx.client.post(f"/api/v1/generate/{task.uid}/cancel", headers=headers)
         ok = response.status_code == 400
         return _outcome(ok, 1.0 if ok else 0.0, {"状态码": float(response.status_code)}, f"状态码：{response.status_code}")
     finally:
@@ -409,7 +410,7 @@ def _case_generate_retry_non_failed(ctx: EvalContext) -> EvalOutcome:
         db.add(task)
         db.commit()
         db.refresh(task)
-        response = ctx.client.post(f"/api/v1/generate/{task.id}/retry", headers=headers)
+        response = ctx.client.post(f"/api/v1/generate/{task.uid}/retry", headers=headers)
         ok = response.status_code == 400
         return _outcome(ok, 1.0 if ok else 0.0, {"状态码": float(response.status_code)}, f"状态码：{response.status_code}")
     finally:
@@ -428,18 +429,18 @@ def _case_generate_oversized_prompt(ctx: EvalContext) -> EvalOutcome:
     return _outcome(ok, 1.0 if ok else 0.0, {"状态码": float(response.status_code)}, f"状态码：{response.status_code}")
 
 
-def _case_generate_status_invalid_id(ctx: EvalContext) -> EvalOutcome:
-    """参数边界：非数字任务 ID 应返回 422。"""
-    headers, _ = _register(ctx, "badid")
-    response = ctx.client.get("/api/v1/generate/status/abc", headers=headers)
-    ok = response.status_code == 422
+def _case_generate_status_invalid_uid(ctx: EvalContext) -> EvalOutcome:
+    """参数边界：不存在的任务 UID 应返回 404。"""
+    headers, _ = _register(ctx, "baduid")
+    response = ctx.client.get("/api/v1/generate/status/not-exist-uid", headers=headers)
+    ok = response.status_code == 404
     return _outcome(ok, 1.0 if ok else 0.0, {"状态码": float(response.status_code)}, f"状态码：{response.status_code}")
 
 
 def _case_generate_retry_missing_task(ctx: EvalContext) -> EvalOutcome:
     """任务控制：重试不存在任务应返回 404。"""
     headers, _ = _register(ctx, "retry_missing")
-    response = ctx.client.post("/api/v1/generate/999999/retry", headers=headers)
+    response = ctx.client.post("/api/v1/generate/not-exist-uid/retry", headers=headers)
     ok = response.status_code == 404
     return _outcome(ok, 1.0 if ok else 0.0, {"状态码": float(response.status_code)}, f"状态码：{response.status_code}")
 
@@ -447,7 +448,7 @@ def _case_generate_retry_missing_task(ctx: EvalContext) -> EvalOutcome:
 def _case_generate_cancel_missing_task(ctx: EvalContext) -> EvalOutcome:
     """任务控制：取消不存在任务应返回 404。"""
     headers, _ = _register(ctx, "cancel_missing")
-    response = ctx.client.post("/api/v1/generate/999999/cancel", headers=headers)
+    response = ctx.client.post("/api/v1/generate/not-exist-uid/cancel", headers=headers)
     ok = response.status_code == 404
     return _outcome(ok, 1.0 if ok else 0.0, {"状态码": float(response.status_code)}, f"状态码：{response.status_code}")
 
@@ -627,8 +628,8 @@ def _case_task_user_isolation(ctx: EvalContext) -> EvalOutcome:
     )
     if submit.status_code != 200:
         return _outcome(False, 0.0, {}, f"提交失败：{submit.text}")
-    task_id = submit.json()["id"]
-    response = ctx.client.get(f"/api/v1/generate/{task_id}/download", headers=headers_b)
+    task_uid = submit.json()["uid"]
+    response = ctx.client.get(f"/api/v1/generate/{task_uid}/download", headers=headers_b)
     ok = response.status_code == 404
     return _outcome(ok, 1.0 if ok else 0.0, {"状态码": float(response.status_code)}, f"状态码：{response.status_code}")
 
@@ -636,7 +637,7 @@ def _case_task_user_isolation(ctx: EvalContext) -> EvalOutcome:
 def _case_concurrent_tasks(ctx: EvalContext) -> EvalOutcome:
     """并发：同一用户连续提交多个任务应全部完成且互不干扰。"""
     headers, _ = _register(ctx, "concurrent")
-    ids = []
+    uids = []
     for i in range(3):
         submit = ctx.client.post(
             "/api/v1/generate/video",
@@ -645,16 +646,16 @@ def _case_concurrent_tasks(ctx: EvalContext) -> EvalOutcome:
         )
         if submit.status_code != 200:
             return _outcome(False, 0.0, {}, f"第 {i} 个任务提交失败：{submit.text}")
-        ids.append(submit.json()["id"])
+        uids.append(submit.json()["uid"])
 
     all_completed = True
-    for task_id in ids:
-        status = ctx.client.get(f"/api/v1/generate/status/{task_id}", headers=headers)
+    for task_uid in uids:
+        status = ctx.client.get(f"/api/v1/generate/status/{task_uid}", headers=headers)
         if status.status_code != 200 or status.json().get("status") != "completed":
             all_completed = False
             break
-    ok = all_completed and len(ids) == 3
-    return _outcome(ok, 1.0 if ok else 0.0, {"任务数": float(len(ids))}, f"任务 IDs：{ids}")
+    ok = all_completed and len(uids) == 3
+    return _outcome(ok, 1.0 if ok else 0.0, {"任务数": float(len(uids))}, f"任务 UIDs：{uids}")
 
 
 def _case_batch_generate(ctx: EvalContext) -> EvalOutcome:
@@ -669,7 +670,7 @@ def _case_batch_generate(ctx: EvalContext) -> EvalOutcome:
     checks = {
         "批量提交成功": response.status_code == 200,
         "数量正确": body.get("count") == 3,
-        "任务 ID 列表完整": len(body.get("task_ids", [])) == 3,
+        "任务 UID 列表完整": len(body.get("task_uids", [])) == 3,
         "批次 ID 存在": bool(body.get("batch_id")),
     }
     score = sum(checks.values()) / len(checks)
@@ -811,11 +812,11 @@ def _case_previs_generate(ctx: EvalContext) -> EvalOutcome:
     )
     if response.status_code != 200:
         return _outcome(False, 0.0, {}, f"提交失败：{response.text}")
-    task_id = response.json()["id"]
+    task_uid = response.json()["uid"]
 
     status = None
     for _ in range(20):
-        status = ctx.client.get(f"/api/v1/generate/status/{task_id}", headers=headers)
+        status = ctx.client.get(f"/api/v1/generate/status/{task_uid}", headers=headers)
         if status.status_code == 200 and status.json()["status"] in {"completed", "failed", "cancelled"}:
             break
         time.sleep(0.5)
@@ -829,10 +830,147 @@ def _case_previs_generate(ctx: EvalContext) -> EvalOutcome:
     return _outcome(
         ok=score == 1.0,
         score=score,
-        metrics={"任务ID": float(task_id)},
+        metrics={"任务UID长度": float(len(task_uid))},
         details=f"任务状态：{status.json().get('status') if status else 'unknown'}",
         trace=list(checks.items()),
     )
+
+
+def _case_generate_new_fields(ctx: EvalContext) -> EvalOutcome:
+    """生成链路：角色映射、台词、配音、字幕等新字段应能持久化。"""
+    headers, _ = _register(ctx, "newfields")
+    character = ctx.client.post(
+        "/api/v1/characters",
+        headers=headers,
+        json={"name": "新字段角色", "reference_image_url": "https://example.com/front.png"},
+    )
+    if character.status_code != 200:
+        return _outcome(False, 0.0, {}, f"创建角色失败：{character.text}")
+    character_id = character.json()["id"]
+
+    submit = ctx.client.post(
+        "/api/v1/generate/video",
+        headers=headers,
+        json={
+            "prompt": "新字段生成任务",
+            "duration": 5,
+            "aspect_ratio": "16:9",
+            "reference_image_urls": ["https://example.com/ref.png"],
+            "character_mappings": [{"object_id": "person_1", "character_id": character_id}],
+            "voice_id": "male_01",
+            "with_subtitle": False,
+            "speech_text": "你好，这是一段测试台词",
+        },
+    )
+    if submit.status_code != 200:
+        return _outcome(False, 0.0, {}, f"提交失败：{submit.text}")
+    task_uid = submit.json()["uid"]
+
+    db = ctx.db_session()
+    try:
+        task = db.query(VideoTask).filter(VideoTask.uid == task_uid).first()
+        checks = {
+            "提交成功": submit.status_code == 200,
+            "返回 UID": bool(task_uid),
+            "参考图已保存": task is not None and "https://example.com/ref.png" in (task.reference_image_urls or []),
+            "角色映射已保存": task is not None and task.character_mappings == [
+                {"object_id": "person_1", "character_id": character_id}
+            ],
+            "配音角色已保存": task is not None and task.voice_id == "male_01",
+            "字幕开关已保存": task is not None and task.with_subtitle is False,
+            "台词已保存": task is not None and task.speech_text == "你好，这是一段测试台词",
+        }
+    finally:
+        db.close()
+
+    score = sum(checks.values()) / len(checks)
+    return _outcome(
+        ok=score == 1.0,
+        score=score,
+        metrics={"角色ID": float(character_id)},
+        details=f"提交状态：{submit.status_code}，UID 长度：{len(task_uid)}",
+        trace=list(checks.items()),
+    )
+
+
+def _case_task_delete(ctx: EvalContext) -> EvalOutcome:
+    """任务控制：应按 UID 删除任务并使其不可再查询。"""
+    headers, user_id = _register(ctx, "taskdel")
+    db = ctx.db_session()
+    try:
+        task = VideoTask(
+            user_id=user_id,
+            prompt="待删除任务",
+            status="completed",
+            duration=5,
+            aspect_ratio="16:9",
+            video_url="/uploads/videos/x.mp4",
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        task_uid = task.uid
+
+        delete = ctx.client.delete(f"/api/v1/generate/{task_uid}", headers=headers)
+        query = ctx.client.get(f"/api/v1/generate/status/{task_uid}", headers=headers)
+
+        checks = {
+            "删除成功": delete.status_code == 200 and delete.json().get("uid") == task_uid,
+            "删除后不可查询": query.status_code == 404,
+        }
+        score = sum(checks.values()) / len(checks)
+        return _outcome(
+            ok=score == 1.0,
+            score=score,
+            metrics={"删除状态码": float(delete.status_code), "查询状态码": float(query.status_code)},
+            details=f"删除：{delete.status_code}，查询：{query.status_code}",
+            trace=list(checks.items()),
+        )
+    finally:
+        db.close()
+
+
+def _case_character_multi_view_delete(ctx: EvalContext) -> EvalOutcome:
+    """角色：多视角参考图应能删除。"""
+    headers, _ = _register(ctx, "multiviewdel")
+    character = ctx.client.post(
+        "/api/v1/characters",
+        headers=headers,
+        json={"name": "多视角删除角色", "reference_image_url": "https://example.com/front.png"},
+    )
+    if character.status_code != 200:
+        return _outcome(False, 0.0, {}, f"创建角色失败：{character.text}")
+    char_id = character.json()["id"]
+    view = ctx.client.post(
+        f"/api/v1/characters/{char_id}/multi-views",
+        headers=headers,
+        json={"view_name": "待删除视角", "image_url": "https://example.com/side.png"},
+    )
+    if view.status_code != 200:
+        return _outcome(False, 0.0, {}, f"添加多视角失败：{view.text}")
+    view_id = view.json()["id"]
+
+    delete = ctx.client.delete(f"/api/v1/characters/{char_id}/multi-views/{view_id}", headers=headers)
+    detail = ctx.client.get(f"/api/v1/characters/{char_id}", headers=headers)
+    ok = delete.status_code == 200 and detail.json().get("multi_views", []) == []
+    return _outcome(
+        ok,
+        1.0 if ok else 0.0,
+        {"删除状态码": float(delete.status_code), "剩余视角数": float(len(detail.json().get("multi_views", [])))},
+        f"删除：{delete.status_code}，剩余视角数：{len(detail.json().get('multi_views', []))}",
+    )
+
+
+def _case_auth_password_strength(ctx: EvalContext) -> EvalOutcome:
+    """认证边界：弱密码应返回 422。"""
+    username = f"weakpwd_{uuid.uuid4().hex[:8]}"
+    response = ctx.client.post(
+        "/api/v1/auth/register",
+        json={"username": username, "password": "12345678", "email": f"{username}@example.com"},
+    )
+    body = response.json()
+    ok = response.status_code == 422 and body.get("code") == "VALIDATION_ERROR"
+    return _outcome(ok, 1.0 if ok else 0.0, {"状态码": float(response.status_code)}, f"状态码：{response.status_code}")
 
 
 def build_system_cases() -> list[EvalCase]:
@@ -920,7 +1058,7 @@ def build_system_cases() -> list[EvalCase]:
         EvalCase(id="system.generate_cancel_completed", name="任务-取消已完成", category="system", target="api_task_control", description="取消已完成任务应返回 400。", fn=_case_generate_cancel_completed),
         EvalCase(id="system.generate_retry_non_failed", name="任务-重试非失败", category="system", target="api_task_control", description="重试非失败任务应返回 400。", fn=_case_generate_retry_non_failed),
         EvalCase(id="system.generate_oversized_prompt", name="参数-超长 Prompt", category="system", target="api_error_handling", description="超长 Prompt 应返回 422。", fn=_case_generate_oversized_prompt),
-        EvalCase(id="system.generate_status_invalid_id", name="参数-非法任务 ID", category="system", target="api_error_handling", description="非数字任务 ID 应返回 422。", fn=_case_generate_status_invalid_id),
+        EvalCase(id="system.generate_status_invalid_uid", name="参数-不存在任务 UID", category="system", target="api_error_handling", description="不存在的任务 UID 应返回 404。", fn=_case_generate_status_invalid_uid),
         EvalCase(id="system.generate_retry_missing_task", name="任务-重试不存在", category="system", target="api_task_control", description="重试不存在任务应返回 404。", fn=_case_generate_retry_missing_task),
         EvalCase(id="system.generate_cancel_missing_task", name="任务-取消不存在", category="system", target="api_task_control", description="取消不存在任务应返回 404。", fn=_case_generate_cancel_missing_task),
         EvalCase(id="system.upload_invalid_type", name="上传-非法类型", category="system", target="api_upload", description="不支持的文件类型应返回 400。", fn=_case_upload_invalid_type),
@@ -943,4 +1081,8 @@ def build_system_cases() -> list[EvalCase]:
         EvalCase(id="system.metrics", name="监控指标", category="system", target="api_monitor", description="监控指标接口应返回基础运行数据。", fn=_case_metrics),
         EvalCase(id="system.previs_flow", name="白模预演流程", category="system", target="api_previs", description="白模模板、项目、更新与渲染应可用。", fn=_case_previs_flow),
         EvalCase(id="system.previs_generate", name="白模降级生成", category="system", target="api_generate", description="携带白模视频与镜头配置应能完成成片。", fn=_case_previs_generate),
+        EvalCase(id="system.generate_new_fields", name="生成-新字段持久化", category="system", target="api_generate", description="角色映射、台词、配音、字幕开关等字段应持久化。", fn=_case_generate_new_fields),
+        EvalCase(id="system.task_delete", name="任务-按 UID 删除", category="system", target="api_task_control", description="应按 UID 删除任务并使其不可查询。", fn=_case_task_delete),
+        EvalCase(id="system.character_multi_view_delete", name="角色-多视角删除", category="system", target="api_character", description="多视角参考图应能删除。", fn=_case_character_multi_view_delete),
+        EvalCase(id="system.auth_password_strength", name="认证-密码强度", category="system", target="api_auth", description="弱密码应返回 422。", fn=_case_auth_password_strength),
     ]
