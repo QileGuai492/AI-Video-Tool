@@ -116,6 +116,40 @@ def merge_audio(video_path: Path, audio_path: Path, output_path: Path) -> Path:
     return output_path
 
 
+def extract_last_frame(video_path: Path, output_path: Path) -> Path:
+    """从视频中提取最后一帧为 JPG，用于多片段衔接时作为下一段首帧。"""
+    ffmpeg = _get_ffmpeg_executable()
+    command = [
+        ffmpeg,
+        "-y",
+        "-sseof",
+        "-1",
+        "-i",
+        str(video_path.resolve()),
+        "-frames:v",
+        "1",
+        "-q:v",
+        "2",
+        str(output_path.resolve()),
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+        )
+    except FileNotFoundError as exc:
+        raise StitchingError("未找到 ffmpeg，请先安装 FFmpeg") from exc
+
+    if result.returncode != 0 or not output_path.exists():
+        raise StitchingError(f"FFmpeg 尾帧提取失败：{(result.stderr or '')[-500:]}")
+
+    return output_path
+
+
 def burn_subtitle(video_path: Path, srt_path: Path, output_path: Path) -> Path:
     """把 SRT 字幕烧录到视频中。
 

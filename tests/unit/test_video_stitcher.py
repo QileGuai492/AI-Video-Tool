@@ -5,6 +5,7 @@ from pathlib import Path
 from app.services.video_stitcher import (
     StitchingError,
     build_concat_file,
+    extract_last_frame,
     merge_audio,
     stitch_videos,
 )
@@ -90,6 +91,18 @@ def test_merge_audio_replaces_audio_track(local_tmp_path: Path) -> None:
     )
 
     result = merge_audio(source, audio, output)
+
+    assert result == output
+    assert output.exists()
+    assert output.stat().st_size > 0
+
+
+def test_extract_last_frame(local_tmp_path: Path) -> None:
+    """应能从视频中提取最后一帧为 JPG。"""
+    source = Path("app/providers/assets/mock_clip.mp4")
+    output = local_tmp_path / "last_frame.jpg"
+
+    result = extract_last_frame(source, output)
 
     assert result == output
     assert output.exists()

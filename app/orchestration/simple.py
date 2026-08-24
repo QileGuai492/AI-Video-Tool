@@ -36,7 +36,13 @@ from app.services.previs_service import (
 )
 from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
-from app.services.video_stitcher import StitchingError, burn_subtitle, merge_audio, stitch_videos
+from app.services.video_stitcher import (
+    StitchingError,
+    burn_subtitle,
+    extract_last_frame,
+    merge_audio,
+    stitch_videos,
+)
 from app.storage import storage
 
 logger = logging.getLogger(__name__)
@@ -222,8 +228,7 @@ class SimpleTaskOrchestrator:
             segment_urls: list[str] = []
             camera_shots = (task.camera_script or {}).get("shots", [])
 
-            def generate_segment(index: int) -> tuple[int, str, str]:
-                frame_url = first_frame_url
+            def generate_segment(index: int, frame_url: str | None) -> tuple[int, str, str]:
                 shot = camera_shots[index] if index < len(camera_shots) else None
                 segment_prompt = build_segment_prompt(
                     task.optimized_prompt or task.prompt,
@@ -255,14 +260,58 @@ class SimpleTaskOrchestrator:
                     segment_url = self._wait_for_real_video(video_provider, handle)
                 return index, segment_prompt, segment_url
 
+            def ensure_local_segment(segment_url: str) -> Path | None:
+                """把片段 URL 转为本地路径，供尾帧提取使用。"""
+                if segment_url.startswith("/uploads/"):
+                    return Path("uploads") / segment_url.removeprefix("/uploads/")
+                downloaded = download_and_store_video(segment_url)
+                if downloaded and downloaded.startswith("/uploads/"):
+                    return Path("uploads") / downloaded.removeprefix("/uploads/")
+                return None
+
+            # 多片段 + 角色/参考图场景使用顺序生成：用上一段尾帧作为下一段首帧，
+            # 减少跨片段角色变异；普通任务仍并行加速。
+            use_consistency_chain = bool(
+                segment_count > 1
+                and (task.character_id is not None or task.character_mappings or task.reference_image_urls)
+            )
             segment_results: list[tuple[str, str] | None] = [None] * segment_count
-            with ThreadPoolExecutor(
-                max_workers=min(segment_count, MAX_PARALLEL_SEGMENTS)
-            ) as executor:
-                futures = [executor.submit(generate_segment, i) for i in range(segment_count)]
-                for future in as_completed(futures):
-                    index, segment_prompt, segment_url = future.result()
+            if use_consistency_chain:
+                current_frame_url = first_frame_url
+                for index in range(segment_count):
+                    _, segment_prompt, segment_url = generate_segment(index, current_frame_url)
                     segment_results[index] = (segment_prompt, segment_url)
+                    if index < segment_count - 1:
+                        local_segment = ensure_local_segment(segment_url)
+                        if local_segment is not None:
+                            frame_path: Path | None = None
+                            try:
+                                tmp_dir = Path("uploads/tmp")
+                                tmp_dir.mkdir(parents=True, exist_ok=True)
+                                frame_path = tmp_dir / f"tail_{uuid.uuid4().hex}.jpg"
+                                extract_last_frame(local_segment, frame_path)
+                                key = storage.upload(
+                                    content=frame_path.read_bytes(),
+                                    suffix="jpg",
+                                    folder="frames",
+                                )
+                                current_frame_url = storage.get_url(key)
+                            except Exception:  # noqa: BLE001
+                                logger.warning("尾帧提取失败，继续使用当前首帧", exc_info=True)
+                            finally:
+                                if frame_path is not None:
+                                    frame_path.unlink(missing_ok=True)
+            else:
+                with ThreadPoolExecutor(
+                    max_workers=min(segment_count, MAX_PARALLEL_SEGMENTS)
+                ) as executor:
+                    futures = [
+                        executor.submit(generate_segment, i, first_frame_url)
+                        for i in range(segment_count)
+                    ]
+                    for future in as_completed(futures):
+                        index, segment_prompt, segment_url = future.result()
+                        segment_results[index] = (segment_prompt, segment_url)
 
             segment_urls = [url for _, url in segment_results]
             for index, (segment_prompt, segment_url) in enumerate(segment_results):
