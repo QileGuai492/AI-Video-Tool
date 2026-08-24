@@ -2,7 +2,12 @@
 
 from pathlib import Path
 
-from app.services.video_stitcher import StitchingError, build_concat_file, stitch_videos
+from app.services.video_stitcher import (
+    StitchingError,
+    build_concat_file,
+    merge_audio,
+    stitch_videos,
+)
 
 
 def test_build_concat_file(local_tmp_path: Path) -> None:
@@ -49,6 +54,44 @@ def test_stitch_two_real_clips(local_tmp_path: Path) -> None:
 
     stitch_videos([first, second], output)
 
+    assert output.exists()
+    assert output.stat().st_size > 0
+
+
+def test_merge_audio_replaces_audio_track(local_tmp_path: Path) -> None:
+    """外部 TTS 音频应能替换进视频并生成新文件。"""
+    import subprocess
+
+    from app.services.video_stitcher import _get_ffmpeg_executable
+
+    source = Path("app/providers/assets/mock_clip.mp4")
+    audio = local_tmp_path / "tts.wav"
+    output = local_tmp_path / "merged.mp4"
+
+    ffmpeg = _get_ffmpeg_executable()
+    subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=44100:cl=mono",
+            "-t",
+            "0.5",
+            str(audio),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
+
+    result = merge_audio(source, audio, output)
+
+    assert result == output
     assert output.exists()
     assert output.stat().st_size > 0
 

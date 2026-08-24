@@ -77,6 +77,45 @@ def stitch_videos(segment_paths: list[Path], output_path: Path) -> Path:
     return output_path
 
 
+def merge_audio(video_path: Path, audio_path: Path, output_path: Path) -> Path:
+    """把外部音频（TTS/配音）替换进视频，替换原视频音轨。"""
+    ffmpeg = _get_ffmpeg_executable()
+    command = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(video_path.resolve()),
+        "-i",
+        str(audio_path.resolve()),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-shortest",
+        str(output_path.resolve()),
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=600,
+        )
+    except FileNotFoundError as exc:
+        raise StitchingError("未找到 ffmpeg，请先安装 FFmpeg") from exc
+
+    if result.returncode != 0:
+        raise StitchingError(f"FFmpeg 音频合成失败：{(result.stderr or '')[-500:]}")
+
+    return output_path
+
+
 def burn_subtitle(video_path: Path, srt_path: Path, output_path: Path) -> Path:
     """把 SRT 字幕烧录到视频中。
 

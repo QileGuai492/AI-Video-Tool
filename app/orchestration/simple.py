@@ -36,7 +36,7 @@ from app.services.previs_service import (
 )
 from app.services.subtitle_service import generate_subtitle
 from app.services.task_service import calculate_segment_count
-from app.services.video_stitcher import StitchingError, burn_subtitle, stitch_videos
+from app.services.video_stitcher import StitchingError, burn_subtitle, merge_audio, stitch_videos
 from app.storage import storage
 
 logger = logging.getLogger(__name__)
@@ -323,6 +323,26 @@ class SimpleTaskOrchestrator:
                 task.audio_url = audio_track.source_url
             except Exception:  # noqa: BLE001
                 task.audio_url = None
+
+            # 把 TTS 配音替换进成片，避免保留视频模型自带音轨（可能是日语等）
+            if task.audio_url and task.audio_url.startswith("/uploads/") and final_video_url and final_video_url.startswith("/uploads/"):
+                tmp_dir = Path("uploads/tmp")
+                tmp_dir.mkdir(parents=True, exist_ok=True)
+                audio_path = Path("uploads") / task.audio_url.removeprefix("/uploads/")
+                source_video = Path("uploads") / final_video_url.removeprefix("/uploads/")
+                merged_output = tmp_dir / f"merged_{uuid.uuid4().hex}.mp4"
+                try:
+                    merge_audio(source_video, audio_path, merged_output)
+                    key = storage.upload(
+                        content=merged_output.read_bytes(),
+                        suffix="mp4",
+                        folder="videos",
+                    )
+                    final_video_url = storage.get_url(key)
+                except Exception:  # noqa: BLE001
+                    logger.warning("音频合成失败，保留原视频音轨", exc_info=True)
+                finally:
+                    merged_output.unlink(missing_ok=True)
 
             if task.with_subtitle:
                 try:
