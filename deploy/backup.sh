@@ -14,4 +14,8 @@ docker compose exec -T postgres pg_dump -U ai_video ai_video > "$BACKUP_DIR/ai_v
 echo "备份上传文件..."
 tar -czf "$BACKUP_DIR/uploads_$TIMESTAMP.tar.gz" uploads 2>/dev/null || true
 
+echo "清理 7 天前的旧备份..."
+find "$BACKUP_DIR" -name "ai_video_*.sql" -mtime +7 -delete
+find "$BACKUP_DIR" -name "uploads_*.tar.gz" -mtime +7 -delete
+
 echo "备份完成：$BACKUP_DIR"

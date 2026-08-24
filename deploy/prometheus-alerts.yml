@@ -1,0 +1,30 @@
+# AI 视频工具 Prometheus 告警规则
+groups:
+  - name: ai-video-alerts
+    rules:
+      - alert: ApiDown
+        expr: up{job="ai-video-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 服务不可用"
+          description: "Prometheus 连续 1 分钟无法抓取 ai-video-api。"
+
+      - alert: HighTaskFailureRate
+        expr: sum(ai_video_tasks{status="failed"}) / sum(ai_video_tasks) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "任务失败率超过 10%"
+          description: "最近 5 分钟任务失败率高于 10%，请检查 Provider 或流水线。"
+
+      - alert: ManyFailedTasks
+        expr: ai_video_tasks{status="failed"} > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "失败任务数量过多"
+          description: "当前 failed 任务数超过 10，可能存在批量异常。"
