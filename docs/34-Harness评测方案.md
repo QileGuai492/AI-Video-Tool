@@ -63,12 +63,13 @@
 - [x] 成本 / 延迟预算门禁用例
 - [x] 趋势报告（历史对比）
 - [x] LLM-as-Judge 常态化（默认纳入，无真实 Key 时自动跳过）
+- [x] 稳定性 / 方差统计（`--runs N`）
 
 ## 4. 目录结构
 
 ```text
 eval_harness/
-├── __main__.py        # 入口：默认 / --real / --judge / --trend
+├── __main__.py        # 入口：默认 / --real / --judge / --trend / --runs
 ├── models.py          # EvalCase / EvalOutcome / EvalResult / EvalSummary
 ├── runner.py          # 执行、预算门禁、汇总
 ├── context.py         # 隔离环境与运行上下文
