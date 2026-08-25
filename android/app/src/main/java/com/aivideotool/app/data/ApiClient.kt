@@ -1,12 +1,14 @@
 package com.aivideotool.app.data
 
-import com.aivideotool.app.BuildConfig
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
-class ApiClient(private val tokenManager: TokenManager) {
+class ApiClient(
+    private val tokenManager: TokenManager,
+    baseUrl: String,
+) {
     private val okHttpClient: OkHttpClient by lazy {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
@@ -30,7 +32,7 @@ class ApiClient(private val tokenManager: TokenManager) {
 
     private val retrofit: Retrofit by lazy {
         Retrofit.Builder()
-            .baseUrl(BuildConfig.API_BASE_URL)
+            .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

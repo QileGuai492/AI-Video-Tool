@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.aivideotool.app.data.ApiClient
 import com.aivideotool.app.data.LoginRequest
 import com.aivideotool.app.data.RegisterRequest
+import com.aivideotool.app.data.ServerConfig
 import com.aivideotool.app.data.TokenManager
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
@@ -32,6 +33,8 @@ import retrofit2.HttpException
 fun LoginScreen(
     apiClient: ApiClient,
     tokenManager: TokenManager,
+    serverConfig: ServerConfig,
+    onServerChanged: (String) -> Unit,
     onLoggedIn: () -> Unit,
 ) {
     var isRegister by remember { mutableStateOf(false) }
@@ -40,6 +43,8 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showServerSettings by remember { mutableStateOf(false) }
+    var serverUrl by remember { mutableStateOf(serverConfig.apiBaseUrl) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -145,6 +150,37 @@ fun LoginScreen(
             modifier = Modifier.padding(top = 8.dp),
         ) {
             Text(if (isRegister) "已有账号？去登录" else "没有账号？去注册")
+        }
+        TextButton(
+            onClick = {
+                showServerSettings = !showServerSettings
+                serverUrl = serverConfig.apiBaseUrl
+            },
+        ) {
+            Text("服务器设置")
+        }
+        if (showServerSettings) {
+            OutlinedTextField(
+                value = serverUrl,
+                onValueChange = { serverUrl = it },
+                label = { Text("API 地址") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+            )
+            Button(
+                onClick = {
+                    onServerChanged(serverUrl)
+                    showServerSettings = false
+                    error = null
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+            ) {
+                Text("保存并重试")
+            }
         }
     }
 }

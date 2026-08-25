@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.aivideotool.app.data.ApiClient
+import com.aivideotool.app.data.ServerConfig
 import com.aivideotool.app.data.TokenManager
 import com.aivideotool.app.ui.LoginScreen
 import com.aivideotool.app.ui.TaskListScreen
@@ -35,7 +36,9 @@ class MainActivity : ComponentActivity() {
 fun AppRoot() {
     val context = LocalContext.current.applicationContext
     val tokenManager = remember { TokenManager(context) }
-    val apiClient = remember { ApiClient(tokenManager) }
+    val serverConfig = remember { ServerConfig(context) }
+    var apiBaseUrl by remember { mutableStateOf(serverConfig.apiBaseUrl) }
+    val apiClient = remember(apiBaseUrl) { ApiClient(tokenManager, apiBaseUrl) }
     var loggedIn by remember { mutableStateOf(tokenManager.token != null) }
 
     if (loggedIn) {
@@ -51,6 +54,11 @@ fun AppRoot() {
         LoginScreen(
             apiClient = apiClient,
             tokenManager = tokenManager,
+            serverConfig = serverConfig,
+            onServerChanged = { newUrl ->
+                serverConfig.apiBaseUrl = newUrl
+                apiBaseUrl = serverConfig.apiBaseUrl
+            },
             onLoggedIn = { loggedIn = true },
         )
     }
