@@ -42,7 +42,8 @@ describe("cameraPresets", () => {
     const next = applyCameraView("top", target);
     expect(next.position[0]).toBeCloseTo(target[0], 5);
     expect(next.position[1]).toBeGreaterThan(target[1]);
-    expect(next.position[2]).toBeCloseTo(target[2], 5);
+    // 为避免相机垂直朝下产生万向锁，z 轴保留 0.01 偏移
+    expect(Math.abs(next.position[2] - target[2])).toBeLessThanOrEqual(0.01);
   });
 
   it("perspective 视图应保持默认斜视角", () => {
