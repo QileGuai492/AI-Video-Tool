@@ -7,6 +7,12 @@ data class LoginRequest(
     val password: String,
 )
 
+data class RegisterRequest(
+    val username: String,
+    val password: String,
+    val email: String? = null,
+)
+
 data class TokenResponse(
     @SerializedName("access_token") val accessToken: String,
     @SerializedName("token_type") val tokenType: String = "bearer",

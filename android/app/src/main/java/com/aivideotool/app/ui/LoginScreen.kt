@@ -10,6 +10,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.aivideotool.app.data.ApiClient
 import com.aivideotool.app.data.LoginRequest
+import com.aivideotool.app.data.RegisterRequest
 import com.aivideotool.app.data.TokenManager
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
@@ -32,8 +34,10 @@ fun LoginScreen(
     tokenManager: TokenManager,
     onLoggedIn: () -> Unit,
 ) {
+    var isRegister by remember { mutableStateOf(false) }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -50,7 +54,7 @@ fun LoginScreen(
             style = MaterialTheme.typography.headlineMedium,
         )
         Text(
-            text = "登录后开始创作",
+            text = if (isRegister) "注册新账号" else "登录后开始创作",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(bottom = 24.dp),
         )
@@ -61,6 +65,17 @@ fun LoginScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        if (isRegister) {
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("邮箱（可选）") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+            )
+        }
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
@@ -85,11 +100,26 @@ fun LoginScreen(
                     loading = true
                     error = null
                     try {
-                        val response = apiClient.authApi.login(LoginRequest(username, password))
+                        val response = if (isRegister) {
+                            apiClient.authApi.register(
+                                RegisterRequest(
+                                    username = username,
+                                    password = password,
+                                    email = email.ifBlank { null },
+                                )
+                            )
+                        } else {
+                            apiClient.authApi.login(LoginRequest(username, password))
+                        }
                         tokenManager.token = response.accessToken
                         onLoggedIn()
                     } catch (e: HttpException) {
-                        error = if (e.code() == 401) "用户名或密码错误" else "登录失败：${e.code()}"
+                        error = when (e.code()) {
+                            400 -> "用户名已存在或参数不合法"
+                            401 -> "用户名或密码错误"
+                            422 -> "密码至少 8 位且包含字母和数字"
+                            else -> "请求失败：${e.code()}"
+                        }
                     } catch (e: Exception) {
                         error = "网络错误：${e.message}"
                     } finally {
@@ -105,7 +135,16 @@ fun LoginScreen(
             if (loading) {
                 CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp), strokeWidth = 2.dp)
             }
-            Text("登录")
+            Text(if (isRegister) "注册并登录" else "登录")
+        }
+        TextButton(
+            onClick = {
+                isRegister = !isRegister
+                error = null
+            },
+            modifier = Modifier.padding(top = 8.dp),
+        ) {
+            Text(if (isRegister) "已有账号？去登录" else "没有账号？去注册")
         }
     }
 }

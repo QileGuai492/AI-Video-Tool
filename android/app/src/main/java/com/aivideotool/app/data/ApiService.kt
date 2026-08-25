@@ -7,6 +7,9 @@ import retrofit2.http.POST
 interface AuthApi {
     @POST("auth/login")
     suspend fun login(@Body body: LoginRequest): TokenResponse
+
+    @POST("auth/register")
+    suspend fun register(@Body body: RegisterRequest): TokenResponse
 }
 
 interface TaskApi {
